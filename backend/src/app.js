@@ -6,6 +6,7 @@ const morgan = require('morgan');
 require('dotenv').config();
 
 // Import routes
+const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const itemRoutes = require('./routes/items');
@@ -52,6 +53,7 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
+app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/items', itemRoutes);
