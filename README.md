@@ -109,7 +109,7 @@ ReWear/
    Edit `.env` with your configuration:
    ```env
    NODE_ENV=development
-   PORT=3000
+   PORT=3001
    MONGODB_URI=mongodb://localhost:27017/rewear
    JWT_SECRET=your-super-secret-jwt-key
    CLOUDINARY_CLOUD_NAME=your-cloud-name
@@ -131,7 +131,7 @@ ReWear/
 
 6. **Access the application**
    - Frontend: http://localhost:5173
-   - Backend API: http://localhost:3000
+   - Backend API: http://localhost:3001
 
 ## 📊 Database Setup
 

@@ -39,7 +39,7 @@ A sustainable clothing exchange platform backend built with Node.js, Express, an
    Edit `.env` with your configuration:
    ```env
    NODE_ENV=development
-   PORT=3000
+   PORT=3001
    MONGODB_URI=mongodb://localhost:27017/rewear
    JWT_SECRET=your-super-secret-jwt-key
    CLOUDINARY_CLOUD_NAME=your-cloud-name
@@ -122,14 +122,14 @@ A sustainable clothing exchange platform backend built with Node.js, Express, an
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NODE_ENV` | Environment mode | `development` |
-| `PORT` | Server port | `3000` |
+| `PORT` | Server port | `3001` |
 | `MONGODB_URI` | MongoDB connection string | - |
 | `JWT_SECRET` | JWT signing secret | - |
 | `JWT_EXPIRES_IN` | JWT expiration time | `7d` |
 | `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name | - |
 | `CLOUDINARY_API_KEY` | Cloudinary API key | - |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret | - |
-| `FRONTEND_URL` | Frontend URL for CORS | `http://localhost:3000` |
+| `FRONTEND_URL` | Frontend URL for CORS | `http://localhost:5173` |
 
 ## 🚀 Deployment
 
