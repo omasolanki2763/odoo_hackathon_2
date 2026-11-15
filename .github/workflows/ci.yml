@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Read-only token: this workflow only installs, builds and tests.
+permissions:
+  contents: read
+
+# A new push to the same branch/PR cancels the older run, so stale jobs
+# do not hold runners or report outdated results.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          # Cache is keyed on this lockfile alone; the monorepo has no root lockfile.
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      # The suite is empty for now, so --passWithNoTests keeps the job honest
+      # instead of failing on "no tests found".
+      - run: npm test -- --passWithNoTests
+
+  frontend:
+    name: Frontend lint and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  # Single required check for branch protection: it passes only when every
+  # real job passed. `if: always()` is needed so a failed dependency still
+  # reaches this job and reports the failure instead of being skipped.
+  ci-ok:
+    name: ci-ok
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: always()
+    steps:
+      - name: Check upstream job results
+        run: |
+          echo "backend=${{ needs.backend.result }}"
+          echo "frontend=${{ needs.frontend.result }}"
+          if [ "${{ needs.backend.result }}" != "success" ] || [ "${{ needs.frontend.result }}" != "success" ]; then
+            echo "One or more required jobs did not pass."
+            exit 1
+          fi
