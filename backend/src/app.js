@@ -21,6 +21,12 @@ const { apiLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
+// Trust reverse proxy headers (e.g. Render, Cloudflare) in production
+// Ensures req.ip and express-rate-limit track client IP from X-Forwarded-For rather than proxy IP
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Security middleware
 app.use(helmet());
 
@@ -32,17 +38,6 @@ const defaultOrigins = [
   'http://127.0.0.1:5173'
 ];
 
-// Support comma-separated frontend URLs and strip trailing slashes for clean matching
-const configuredOrigins = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(',').flatMap(url => {
-      const trimmed = url.trim();
-      const withoutSlash = trimmed.replace(/\/+$/, '');
-      return [trimmed, withoutSlash];
-    }).filter(Boolean)
-  : [];
-
-const allowedOrigins = [...new Set([...defaultOrigins, ...configuredOrigins])];
-
 app.use(cors({
   origin: (origin, callback) => {
     // Allow non-browser requests (e.g. curl, server-to-server, uptime monitoring)
@@ -50,6 +45,18 @@ app.use(cors({
       return callback(null, true);
     }
     const cleanOrigin = origin.replace(/\/+$/, '');
+
+    // Support comma-separated frontend URLs and strip trailing slashes for clean matching
+    const configuredOrigins = process.env.FRONTEND_URL
+      ? process.env.FRONTEND_URL.split(',').flatMap(url => {
+          const trimmed = url.trim();
+          const withoutSlash = trimmed.replace(/\/+$/, '');
+          return [trimmed, withoutSlash];
+        }).filter(Boolean)
+      : [];
+
+    const allowedOrigins = [...new Set([...defaultOrigins, ...configuredOrigins])];
+
     if (allowedOrigins.includes(origin) || allowedOrigins.includes(cleanOrigin)) {
       return callback(null, true);
     }
@@ -57,7 +64,8 @@ app.use(cors({
     if (process.env.NODE_ENV !== 'production' && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
       return callback(null, true);
     }
-    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    // Disallow origin gracefully without throwing a 500 error or logging stack traces
+    return callback(null, false);
   },
   credentials: true
 }));

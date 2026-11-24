@@ -117,19 +117,4 @@ export const throttle = (func, limit) => {
   };
 };
 
-// Preload critical resources
-export const preloadResources = () => {
-  const criticalPaths = [
-    '/api/auth/profile',
-    '/api/items'
-  ];
-  
-  criticalPaths.forEach(path => {
-    const link = document.createElement('link');
-    link.rel = 'prefetch';
-    link.href = path;
-    document.head.appendChild(link);
-  });
-};
-
 export default performanceMonitor; 

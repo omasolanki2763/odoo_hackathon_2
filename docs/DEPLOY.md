@@ -125,8 +125,9 @@ Step-by-step instructions for deploying ReWear to production on a 0 INR budget u
    - **Build Command**: `npm run build`
    - **Build Output Directory**: `dist`
 5. **Environment Variables**:
-   - Add variable:
+   - Add variables:
      - `VITE_API_URL` = `https://rewear-backend.onrender.com` (your Render backend URL)
+     - `NODE_VERSION` = `24` (ensures Node 24 runtime; Vite 7 requires Node 20.19+)
 6. Click **Save and Deploy**.
 7. Once deployed, note your public domain (e.g., `https://rewear.pages.dev`).
 
@@ -168,6 +169,6 @@ Step-by-step instructions for deploying ReWear to production on a 0 INR budget u
 
 ## 7. Troubleshooting & Notes
 
-- **Render Cold Starts**: On the free tier, Render spins down inactive backend instances after 15 minutes of idle time. The first request after spindown may take 30-50 seconds to respond.
+- **Render Cold Starts**: On the free tier, Render spins down inactive backend instances after 15 minutes of idle time. The first request after spindown may take 30-50 seconds to respond. Because the first visit after 15 idle minutes shows a slow load, the demo link should be opened once a minute before presenting or demonstrating it.
 - **CORS Errors**: If browser console reports `Blocked by CORS policy`, verify that `FRONTEND_URL` on Render exactly matches the browser origin (including protocol `https://` without trailing slash).
 - **MongoDB Connection Errors**: Ensure IP Access List on MongoDB Atlas includes `0.0.0.0/0` so Render dynamic IPs can connect.
