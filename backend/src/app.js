@@ -23,8 +23,42 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
+
+// Configure CORS allowed origins from defaults and FRONTEND_URL environment variable
+const defaultOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173'
+];
+
+// Support comma-separated frontend URLs and strip trailing slashes for clean matching
+const configuredOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').flatMap(url => {
+      const trimmed = url.trim();
+      const withoutSlash = trimmed.replace(/\/+$/, '');
+      return [trimmed, withoutSlash];
+    }).filter(Boolean)
+  : [];
+
+const allowedOrigins = [...new Set([...defaultOrigins, ...configuredOrigins])];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'],
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g. curl, server-to-server, uptime monitoring)
+    if (!origin) {
+      return callback(null, true);
+    }
+    const cleanOrigin = origin.replace(/\/+$/, '');
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes(cleanOrigin)) {
+      return callback(null, true);
+    }
+    // Allow localhost variations in development
+    if (process.env.NODE_ENV !== 'production' && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
   credentials: true
 }));
 
