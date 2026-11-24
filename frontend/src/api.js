@@ -1,7 +1,15 @@
 import axios from 'axios';
 
+// Resolve API base URL: read from VITE_API_URL when deployed, falling back to local /api proxy
+const rawApiUrl = import.meta.env.VITE_API_URL;
+const apiBaseURL = rawApiUrl
+  ? (rawApiUrl.replace(/\/+$/, '').endsWith('/api')
+      ? rawApiUrl.replace(/\/+$/, '')
+      : `${rawApiUrl.replace(/\/+$/, '')}/api`)
+  : '/api';
+
 const api = axios.create({
-  baseURL: '/api', // Use relative path with Vite proxy
+  baseURL: apiBaseURL,
   headers: {
     'Content-Type': 'application/json',
   },
