@@ -1,5 +1,12 @@
 const { body, param, query } = require('express-validator');
-const { ITEM_CATEGORIES, ITEM_CONDITIONS, ITEM_STATUSES, PAGINATION } = require('../utils/constants');
+const {
+  ITEM_CATEGORIES,
+  ITEM_CONDITIONS,
+  ITEM_STATUSES,
+  ITEM_FIT_OPTIONS,
+  PAGINATION,
+  validateCategoryMeasurements
+} = require('../utils/constants');
 
 const ALLOWED_GENDERS = ['men', 'women', 'unisex'];
 const ALLOWED_SORT_MODES = ['newest', 'points_asc', 'points_desc'];
@@ -154,6 +161,11 @@ const createItemValidator = [
     .trim()
     .notEmpty()
     .withMessage('Size is required'),
+
+  body('fit')
+    .optional()
+    .isIn(ITEM_FIT_OPTIONS)
+    .withMessage('Fit must be runs-small, true, or runs-large'),
   
   body('condition')
     .isIn(Object.values(ITEM_CONDITIONS))
@@ -199,25 +211,15 @@ const createItemValidator = [
     .isLength({ min: 1, max: 20 })
     .withMessage('Each tag must be between 1 and 20 characters'),
   
-  body('measurements.chest')
+  body('measurements')
     .optional()
-    .isNumeric()
-    .withMessage('Chest measurement must be a number'),
-  
-  body('measurements.waist')
-    .optional()
-    .isNumeric()
-    .withMessage('Waist measurement must be a number'),
-  
-  body('measurements.length')
-    .optional()
-    .isNumeric()
-    .withMessage('Length measurement must be a number'),
-  
-  body('measurements.unit')
-    .optional()
-    .isIn(['cm', 'inches'])
-    .withMessage('Measurement unit must be cm or inches'),
+    .custom((value, { req }) => {
+      const errMsg = validateCategoryMeasurements(req.body.category, value);
+      if (errMsg) {
+        throw new Error(errMsg);
+      }
+      return true;
+    }),
   
   body('pointsValue')
     .isInt({ min: 1 })
@@ -296,6 +298,21 @@ const updateItemValidator = [
     .trim()
     .notEmpty()
     .withMessage('Size cannot be empty'),
+
+  body('fit')
+    .optional()
+    .isIn(ITEM_FIT_OPTIONS)
+    .withMessage('Fit must be runs-small, true, or runs-large'),
+
+  body('measurements')
+    .optional()
+    .custom((value, { req }) => {
+      const errMsg = validateCategoryMeasurements(req.body.category || null, value);
+      if (errMsg) {
+        throw new Error(errMsg);
+      }
+      return true;
+    }),
   
   body('condition')
     .optional()

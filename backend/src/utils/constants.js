@@ -126,10 +126,94 @@ const STATUS_CODES = {
   INTERNAL_SERVER_ERROR: 500
 };
 
+// Item fit notes (size label system)
+const ITEM_FIT_OPTIONS = ['runs-small', 'true', 'runs-large'];
+
+// Measurement field bounds (in cm, except EU/UK shoe sizing)
+const MEASUREMENT_FIELD_BOUNDS = {
+  chest: { min: 20, max: 250 },
+  bust: { min: 20, max: 250 },
+  waist: { min: 20, max: 250 },
+  length: { min: 5, max: 300 },
+  shoulder: { min: 15, max: 120 },
+  sleeve: { min: 10, max: 150 },
+  inseam: { min: 10, max: 150 },
+  rise: { min: 5, max: 80 },
+  legOpening: { min: 5, max: 100 },
+  width: { min: 1, max: 250 },
+  euSize: { min: 15, max: 55 },
+  ukSize: { min: 1, max: 20 },
+  insoleLength: { min: 10, max: 45 }
+};
+
+// Allowed measurement fields per item category
+const CATEGORY_MEASUREMENT_FIELDS = {
+  [ITEM_CATEGORIES.TOPS]: ['chest', 'length', 'shoulder', 'sleeve'],
+  [ITEM_CATEGORIES.OUTERWEAR]: ['chest', 'length', 'shoulder', 'sleeve'],
+  [ITEM_CATEGORIES.BOTTOMS]: ['waist', 'inseam', 'rise', 'legOpening'],
+  [ITEM_CATEGORIES.DRESSES]: ['bust', 'waist', 'length'],
+  [ITEM_CATEGORIES.SHOES]: ['euSize', 'ukSize', 'insoleLength'],
+  [ITEM_CATEGORIES.ACCESSORIES]: ['length', 'width']
+};
+
+/**
+ * Validate category-specific measurements against allowed fields and bounds.
+ * Returns null if valid, or a descriptive error message string if invalid.
+ */
+const validateCategoryMeasurements = (category, measurements) => {
+  if (measurements === undefined || measurements === null) return null;
+  if (typeof measurements !== 'object' || Array.isArray(measurements)) {
+    return 'Measurements must be an object';
+  }
+
+  const plain = typeof measurements.toObject === 'function' ? measurements.toObject() : measurements;
+  const entries = Object.entries(plain).filter(([key, val]) => key !== '_id' && val !== undefined && val !== null && val !== '');
+
+  if (entries.length === 0) return null;
+
+  const allowedForCategory = category ? CATEGORY_MEASUREMENT_FIELDS[category] : null;
+  if (category && !allowedForCategory) {
+    return 'Invalid category for measurements';
+  }
+
+  for (const [key, value] of entries) {
+    if (key === 'unit') {
+      if (value !== 'cm' && value !== 'inches') {
+        return 'Measurement unit must be cm or inches';
+      }
+      continue;
+    }
+
+    const bounds = MEASUREMENT_FIELD_BOUNDS[key];
+    if (!bounds) {
+      return `Unknown measurement field "${key}"`;
+    }
+
+    if (allowedForCategory && !allowedForCategory.includes(key)) {
+      return `Measurement "${key}" is not allowed for category "${category}"`;
+    }
+
+    if (typeof value === 'boolean' || Array.isArray(value) || typeof value === 'object') {
+      return `Measurement "${key}" must be a number`;
+    }
+
+    const num = Number(value);
+    if (!Number.isFinite(num) || num < bounds.min || num > bounds.max) {
+      return `Measurement "${key}" must be between ${bounds.min} and ${bounds.max}`;
+    }
+  }
+
+  return null;
+};
+
 module.exports = {
   ITEM_CATEGORIES,
   ITEM_CONDITIONS,
   ITEM_STATUSES,
+  ITEM_FIT_OPTIONS,
+  MEASUREMENT_FIELD_BOUNDS,
+  CATEGORY_MEASUREMENT_FIELDS,
+  validateCategoryMeasurements,
   SWAP_TYPES,
   SWAP_STATUSES,
   USER_STATUSES,
@@ -140,4 +224,4 @@ module.exports = {
   PAGINATION,
   MESSAGES,
   STATUS_CODES
-}; 
+};
