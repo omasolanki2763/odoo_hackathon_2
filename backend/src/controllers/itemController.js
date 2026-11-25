@@ -6,19 +6,43 @@ class ItemController {
   // Get all items with filtering
   async getItems(req, res) {
     try {
-      const { page = 1, limit = 10, category, condition, gender, size, minPoints, maxPoints, search, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+      const {
+        page = 1,
+        limit = 10,
+        category,
+        condition,
+        gender,
+        size,
+        minPoints,
+        maxPoints,
+        colour,
+        material,
+        brand,
+        search,
+        sort = 'newest',
+        sortBy,
+        sortOrder
+      } = req.query;
 
       const filters = {
         category,
         condition,
         gender,
         size,
-        minPoints: parseInt(minPoints),
-        maxPoints: parseInt(maxPoints),
+        colour,
+        material,
+        brand,
+        minPoints: minPoints !== undefined ? parseInt(minPoints, 10) : undefined,
+        maxPoints: maxPoints !== undefined ? parseInt(maxPoints, 10) : undefined,
         search
       };
 
-      const result = await itemService.getItems(filters, parseInt(page), parseInt(limit));
+      const result = await itemService.getItems(
+        filters,
+        parseInt(page, 10),
+        parseInt(limit, 10),
+        { sort, sortBy, sortOrder }
+      );
 
       return paginatedResponse(res, result.items, result.pagination);
     } catch (error) {
