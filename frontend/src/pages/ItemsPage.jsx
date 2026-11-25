@@ -443,9 +443,34 @@ const ItemsPage = () => {
   const showingEnd = Math.min(page * PAGE_LIMIT, pagination.totalItems || items.length);
   const showingStart = pagination.totalItems > 0 ? (page - 1) * PAGE_LIMIT + 1 : 0;
 
+  const renderActiveChips = () => (
+    <>
+      {activeChips.map((chip) => (
+        <button
+          key={chip.id}
+          type="button"
+          className="browse-chip-btn"
+          onClick={chip.onRemove}
+        >
+          <span>{chip.label}</span>
+          <span aria-hidden="true">×</span>
+        </button>
+      ))}
+      {activeChips.length > 0 && (
+        <button
+          type="button"
+          className="browse-clear-btn"
+          onClick={clearAllFilters}
+        >
+          Clear all
+        </button>
+      )}
+    </>
+  );
+
   return (
     <div className="browse-page">
-      <div className="browse-container">
+      <div className="shell-inner">
         <nav aria-label="Breadcrumb" className="browse-breadcrumb">
           <Link to="/" className="browse-breadcrumb-link">
             Home
@@ -517,6 +542,13 @@ const ItemsPage = () => {
             </select>
           </div>
         </div>
+
+        {/* Active Filter Chips Row (visible when filter panel is collapsed) */}
+        {!filtersOpen && activeChips.length > 0 && (
+          <div className="browse-active-strip" aria-label="Active filters">
+            {renderActiveChips()}
+          </div>
+        )}
 
         {/* Filter Panel (Inline on desktop, Slide-out drawer on <= 768px) */}
         {filtersOpen && (
@@ -758,28 +790,7 @@ const ItemsPage = () => {
 
               {/* Active Chips Bar */}
               <div className="browse-filter-footer">
-                <div className="browse-active-chips">
-                  {activeChips.map((chip) => (
-                    <button
-                      key={chip.id}
-                      type="button"
-                      className="browse-chip-btn"
-                      onClick={chip.onRemove}
-                    >
-                      <span>{chip.label}</span>
-                      <span aria-hidden="true">×</span>
-                    </button>
-                  ))}
-                  {activeChips.length > 0 && (
-                    <button
-                      type="button"
-                      className="browse-clear-btn"
-                      onClick={clearAllFilters}
-                    >
-                      Clear all
-                    </button>
-                  )}
-                </div>
+                <div className="browse-active-chips">{renderActiveChips()}</div>
 
                 <button
                   type="button"

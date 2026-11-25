@@ -5,7 +5,7 @@ const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const validate = require('../middleware/validation');
 const { uploadMultiple } = require('../middleware/upload');
-const { createItemValidator, updateItemValidator, getItemsValidator, getItemValidator } = require('../validators/itemValidator');
+const { createItemValidator, updateItemValidator, getItemsValidator, searchItemsValidator, getItemValidator } = require('../validators/itemValidator');
 
 // Get all items (public)
 router.get('/', getItemsValidator, validate, itemController.getItems);
@@ -14,7 +14,7 @@ router.get('/', getItemsValidator, validate, itemController.getItems);
 router.get('/featured', itemController.getFeaturedItems);
 
 // Search items (public)
-router.get('/search', getItemsValidator, validate, itemController.searchItems);
+router.get('/search', searchItemsValidator, validate, itemController.searchItems);
 
 // Get item by ID (public)
 router.get('/:id', getItemValidator, validate, itemController.getItemById);
