@@ -573,7 +573,7 @@ const ItemDetailPage = () => {
                 </span>
               </div>
               <p className="detail-protection-note">
-                If it arrives not as described, points stay protected until swap confirmation completes.
+                Points transfer to @{owner?.username || 'the owner'} only when your request is accepted.
               </p>
             </section>
 
