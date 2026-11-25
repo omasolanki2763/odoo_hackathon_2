@@ -147,7 +147,7 @@ class ItemService {
   async getItemById(itemId) {
     try {
       const item = await Item.findById(itemId)
-        .populate('userId', 'firstName lastName username profile');
+        .populate('userId', 'firstName lastName username profile createdAt');
 
       if (!item) {
         throw new Error('Item not found');
@@ -168,7 +168,7 @@ class ItemService {
       }
 
       // Check ownership
-      if (item.userId.toString() !== userId) {
+      if (item.userId.toString() !== String(userId)) {
         throw new Error('Not authorized to update this item');
       }
 

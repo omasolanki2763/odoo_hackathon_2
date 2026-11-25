@@ -1,4 +1,20 @@
 const mongoose = require('mongoose');
+const {
+  ITEM_FIT_OPTIONS,
+  MEASUREMENT_FIELD_BOUNDS,
+  validateCategoryMeasurements
+} = require('../utils/constants');
+
+const measurementNumberFields = Object.fromEntries(
+  Object.entries(MEASUREMENT_FIELD_BOUNDS).map(([field, bounds]) => [
+    field,
+    {
+      type: Number,
+      min: bounds.min,
+      max: bounds.max
+    }
+  ])
+);
 
 const itemSchema = new mongoose.Schema({
   userId: {
@@ -46,6 +62,11 @@ const itemSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  fit: {
+    type: String,
+    enum: ITEM_FIT_OPTIONS,
+    trim: true
+  },
   condition: {
     type: String,
     required: true,
@@ -85,9 +106,7 @@ const itemSchema = new mongoose.Schema({
     }
   }],
   measurements: {
-    chest: Number,
-    waist: Number,
-    length: Number,
+    ...measurementNumberFields,
     unit: {
       type: String,
       enum: ['cm', 'inches'],
@@ -152,6 +171,17 @@ itemSchema.methods.addToSwapHistory = function(swapId, type) {
   this.swapHistory.push({ swapId, type });
   return this.save();
 };
+
+// Validate category-specific measurements whenever category or measurements change
+itemSchema.pre('validate', function(next) {
+  if (this.isModified('measurements') || this.isModified('category')) {
+    const errMsg = validateCategoryMeasurements(this.category, this.measurements);
+    if (errMsg) {
+      this.invalidate('measurements', errMsg);
+    }
+  }
+  next();
+});
 
 // Method to check if item is available
 itemSchema.methods.isAvailable = function() {
