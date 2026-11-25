@@ -9,9 +9,10 @@ import '@fontsource/barlow/500.css';
 import '@fontsource/barlow/600.css';
 import '@fontsource/ibm-plex-mono/400.css';
 
-// Design tokens and base stylesheet
+// Design tokens, app shell, and base stylesheet
 import './styles/tokens.css';
 import './index.css';
+import './styles/AppShell.css';
 
 import App from './App.jsx';
 import performanceMonitor, { optimizeImages } from './utils/performance.js';
