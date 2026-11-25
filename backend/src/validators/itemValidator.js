@@ -21,6 +21,15 @@ const ALLOWED_GET_ITEMS_QUERY_KEYS = new Set([
   'sortOrder'
 ]);
 
+const ALLOWED_SEARCH_ITEMS_QUERY_KEYS = new Set([
+  'q',
+  'page',
+  'limit',
+  'category',
+  'condition',
+  'gender'
+]);
+
 const splitCommaList = (rawValue) =>
   rawValue
     .split(',')
@@ -62,12 +71,12 @@ const validateCommaSeparatedStrings = (field, maxLength, label) =>
     return true;
   });
 
-const whitelistGetItemsQuery = (req, res, next) => {
+const createQueryWhitelistValidator = (allowedKeys) => (req, res, next) => {
   const keys = Object.keys(req.query || {});
   const badErrors = [];
 
   for (const key of keys) {
-    if (!ALLOWED_GET_ITEMS_QUERY_KEYS.has(key) || key.startsWith('$')) {
+    if (!allowedKeys.has(key) || key.startsWith('$')) {
       badErrors.push({
         field: key,
         message: 'Unknown or disallowed query parameter',
@@ -95,6 +104,9 @@ const whitelistGetItemsQuery = (req, res, next) => {
 
   return next();
 };
+
+const whitelistGetItemsQuery = createQueryWhitelistValidator(ALLOWED_GET_ITEMS_QUERY_KEYS);
+const whitelistSearchItemsQuery = createQueryWhitelistValidator(ALLOWED_SEARCH_ITEMS_QUERY_KEYS);
 
 const createItemValidator = [
   body('title')
@@ -326,9 +338,7 @@ const updateItemValidator = [
     .withMessage('Invalid status')
 ];
 
-const getItemsValidator = [
-  whitelistGetItemsQuery,
-
+const sharedFilterFieldValidators = [
   ensureStringQueryParam('page')
     .isInt({ min: 1, max: 10000 })
     .withMessage('Page must be a positive integer'),
@@ -341,7 +351,13 @@ const getItemsValidator = [
 
   validateCommaSeparatedEnum('condition', Object.values(ITEM_CONDITIONS), 'condition'),
 
-  validateCommaSeparatedEnum('gender', ALLOWED_GENDERS, 'gender'),
+  validateCommaSeparatedEnum('gender', ALLOWED_GENDERS, 'gender')
+];
+
+const getItemsValidator = [
+  whitelistGetItemsQuery,
+
+  ...sharedFilterFieldValidators,
 
   validateCommaSeparatedStrings('size', 20, 'size'),
 
@@ -392,6 +408,23 @@ const getItemsValidator = [
     .withMessage('Sort order must be asc or desc')
 ];
 
+const searchItemsValidator = [
+  whitelistSearchItemsQuery,
+
+  query('q')
+    .custom((value) => {
+      if (typeof value !== 'string' || !value.trim()) {
+        throw new Error('Search term q is required');
+      }
+      return true;
+    })
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Search term must be between 1 and 100 characters'),
+
+  ...sharedFilterFieldValidators
+];
+
 const getItemValidator = [
   param('id')
     .isMongoId()
@@ -402,5 +435,6 @@ module.exports = {
   createItemValidator,
   updateItemValidator,
   getItemsValidator,
+  searchItemsValidator,
   getItemValidator
 }; 

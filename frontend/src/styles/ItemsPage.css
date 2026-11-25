@@ -8,6 +8,11 @@
   box-sizing: border-box;
 }
 
+.browse-page button:focus:not(:focus-visible),
+.browse-page a:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .browse-page {
   background: var(--color-paper);
   color: var(--color-ink);
@@ -15,10 +20,13 @@
   padding: var(--space-8) 0 var(--space-16);
 }
 
-.browse-container {
-  max-width: var(--container-max);
-  margin: 0 auto;
-  padding: 0 var(--space-6);
+/* Active Chips Strip (shown below toolbar when filter panel is collapsed) */
+.browse-active-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
 }
 
 .browse-breadcrumb {
@@ -275,9 +283,11 @@
 
 .browse-size-btn:hover {
   border-color: var(--color-ink);
+  background: var(--color-tint);
 }
 
-.browse-size-btn-active {
+.browse-size-btn-active,
+.browse-size-btn-active:hover {
   background: var(--color-ink);
   color: var(--color-paper);
   border-color: var(--color-ink);
@@ -834,11 +844,7 @@
   .browse-page {
     margin-left: calc(-1 * var(--space-4));
     margin-right: calc(-1 * var(--space-4));
-    padding: var(--space-5) var(--space-4) var(--space-12);
-  }
-
-  .browse-container {
-    padding: 0;
+    padding: var(--space-5) 0 var(--space-12);
   }
 
   .browse-toolbar {

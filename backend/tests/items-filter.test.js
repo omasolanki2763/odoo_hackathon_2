@@ -329,4 +329,24 @@ describe('GET /api/items catalogue filters and validation', () => {
       expect(clamped.pagination.itemsPerPage).toBe(50);
     });
   });
+
+  describe('GET /api/items/search dedicated q validator', () => {
+    it('returns 200 with matching items for /api/items/search?q=denim', async () => {
+      const res = await request(app).get('/api/items/search?q=denim');
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].title).toBe('Vintage Denim Chore Jacket');
+    });
+
+    it('rejects missing q or operator injection on /api/items/search with 400', async () => {
+      const missingRes = await request(app).get('/api/items/search');
+      expect(missingRes.status).toBe(400);
+      expect(missingRes.body.success).toBe(false);
+
+      const injRes = await request(app).get('/api/items/search?q[$ne]=denim');
+      expect(injRes.status).toBe(400);
+      expect(injRes.body.success).toBe(false);
+      expect(lastQuery).toBeNull();
+    });
+  });
 });
