@@ -1,8 +1,49 @@
 const Item = require('../models/Item');
 const User = require('../models/User');
-const { calculateItemPoints } = require('../utils/helpers');
-const { generatePagination } = require('../utils/helpers');
+const { calculateItemPoints, generatePagination, escapeRegex } = require('../utils/helpers');
+const { PAGINATION } = require('../utils/constants');
 const Notification = require('../models/Notification');
+
+const SORT_PRESETS = {
+  newest: { createdAt: -1 },
+  points_asc: { pointsValue: 1, createdAt: -1 },
+  points_desc: { pointsValue: -1, createdAt: -1 }
+};
+
+const ALLOWED_LEGACY_SORT_FIELDS = new Set(['createdAt', 'pointsValue', 'title']);
+
+const parseFilterTokens = (raw) => {
+  if (!raw || typeof raw !== 'string') return [];
+  return raw
+    .split(',')
+    .map((token) => token.trim())
+    .filter(Boolean);
+};
+
+const buildExactOrInFilter = (raw, caseInsensitive = false) => {
+  const tokens = parseFilterTokens(raw);
+  if (tokens.length === 0) return null;
+  const normalized = caseInsensitive
+    ? tokens.map((token) => new RegExp(`^${escapeRegex(token)}$`, 'i'))
+    : tokens;
+  return normalized.length === 1 ? normalized[0] : { $in: normalized };
+};
+
+const resolveSortSpec = (sortOptions = {}) => {
+  if (typeof sortOptions === 'string' && SORT_PRESETS[sortOptions]) {
+    return SORT_PRESETS[sortOptions];
+  }
+  if (sortOptions && typeof sortOptions === 'object') {
+    if (sortOptions.sort && SORT_PRESETS[sortOptions.sort]) {
+      return SORT_PRESETS[sortOptions.sort];
+    }
+    if (sortOptions.sortBy && ALLOWED_LEGACY_SORT_FIELDS.has(sortOptions.sortBy)) {
+      const dir = sortOptions.sortOrder === 'asc' ? 1 : -1;
+      return { [sortOptions.sortBy]: dir };
+    }
+  }
+  return SORT_PRESETS.newest;
+};
 
 class ItemService {
   // Create new item
@@ -33,46 +74,68 @@ class ItemService {
   }
 
   // Get items with filtering and pagination
-  async getItems(filters = {}, page = 1, limit = 10) {
+  async getItems(filters = {}, page = PAGINATION.DEFAULT_PAGE, limit = PAGINATION.DEFAULT_LIMIT, sortOptions = 'newest') {
     try {
+      const safePage = Math.max(1, Number.isFinite(Number(page)) ? Math.floor(Number(page)) : PAGINATION.DEFAULT_PAGE);
+      const safeLimit = Math.min(
+        Math.max(1, Number.isFinite(Number(limit)) ? Math.floor(Number(limit)) : PAGINATION.DEFAULT_LIMIT),
+        PAGINATION.MAX_LIMIT
+      );
+
       const query = { status: 'available' };
 
-      // Apply filters
-      if (filters.category) query.category = filters.category;
-      if (filters.condition) query.condition = filters.condition;
-      if (filters.gender) query.gender = filters.gender;
-      if (filters.size) query.size = filters.size;
-      if (filters.minPoints) query.pointsValue = { $gte: filters.minPoints };
-      if (filters.maxPoints) {
-        query.pointsValue = { ...query.pointsValue, $lte: filters.maxPoints };
+      const categoryFilter = buildExactOrInFilter(filters.category);
+      if (categoryFilter) query.category = categoryFilter;
+
+      const conditionFilter = buildExactOrInFilter(filters.condition);
+      if (conditionFilter) query.condition = conditionFilter;
+
+      const genderFilter = buildExactOrInFilter(filters.gender);
+      if (genderFilter) query.gender = genderFilter;
+
+      const sizeFilter = buildExactOrInFilter(filters.size);
+      if (sizeFilter) query.size = sizeFilter;
+
+      const colourFilter = buildExactOrInFilter(filters.colour, true);
+      if (colourFilter) query.colour = colourFilter;
+
+      const materialFilter = buildExactOrInFilter(filters.material, true);
+      if (materialFilter) query.material = materialFilter;
+
+      if (typeof filters.brand === 'string' && filters.brand.trim()) {
+        query.brand = new RegExp(escapeRegex(filters.brand.trim()), 'i');
       }
 
-      // Search functionality
-      if (filters.search) {
-        const searchRegex = new RegExp(filters.search, 'i');
+      if (Number.isFinite(filters.minPoints)) {
+        query.pointsValue = { $gte: filters.minPoints };
+      }
+      if (Number.isFinite(filters.maxPoints)) {
+        query.pointsValue = { ...(query.pointsValue || {}), $lte: filters.maxPoints };
+      }
+
+      if (typeof filters.search === 'string' && filters.search.trim()) {
+        const searchRegex = new RegExp(escapeRegex(filters.search.trim()), 'i');
         query.$or = [
           { title: searchRegex },
           { description: searchRegex },
           { brand: searchRegex },
+          { material: searchRegex },
+          { colour: searchRegex },
           { tags: searchRegex }
         ];
       }
 
-      // Calculate skip value
-      const skip = (page - 1) * limit;
+      const sortSpec = resolveSortSpec(sortOptions);
+      const skip = (safePage - 1) * safeLimit;
 
-      // Execute query
       const items = await Item.find(query)
         .populate('userId', 'firstName lastName username')
-        .sort({ createdAt: -1 })
+        .sort(sortSpec)
         .skip(skip)
-        .limit(limit);
+        .limit(safeLimit);
 
-      // Get total count
       const total = await Item.countDocuments(query);
-
-      // Generate pagination info
-      const pagination = generatePagination(page, limit, total);
+      const pagination = generatePagination(safePage, safeLimit, total);
 
       return { items, pagination };
     } catch (error) {
@@ -234,33 +297,43 @@ class ItemService {
   }
 
   // Search items
-  async searchItems(searchTerm, filters = {}, page = 1, limit = 10) {
+  async searchItems(searchTerm, filters = {}, page = PAGINATION.DEFAULT_PAGE, limit = PAGINATION.DEFAULT_LIMIT) {
     try {
+      const safePage = Math.max(1, Number.isFinite(Number(page)) ? Math.floor(Number(page)) : PAGINATION.DEFAULT_PAGE);
+      const safeLimit = Math.min(
+        Math.max(1, Number.isFinite(Number(limit)) ? Math.floor(Number(limit)) : PAGINATION.DEFAULT_LIMIT),
+        PAGINATION.MAX_LIMIT
+      );
       const query = { status: 'available' };
-      const searchRegex = new RegExp(searchTerm, 'i');
+      const searchRegex = new RegExp(escapeRegex(String(searchTerm).trim()), 'i');
 
       query.$or = [
         { title: searchRegex },
         { description: searchRegex },
         { brand: searchRegex },
+        { material: searchRegex },
+        { colour: searchRegex },
         { tags: searchRegex }
       ];
 
       // Apply additional filters
-      if (filters.category) query.category = filters.category;
-      if (filters.condition) query.condition = filters.condition;
-      if (filters.gender) query.gender = filters.gender;
+      const categoryFilter = buildExactOrInFilter(filters.category);
+      if (categoryFilter) query.category = categoryFilter;
+      const conditionFilter = buildExactOrInFilter(filters.condition);
+      if (conditionFilter) query.condition = conditionFilter;
+      const genderFilter = buildExactOrInFilter(filters.gender);
+      if (genderFilter) query.gender = genderFilter;
 
-      const skip = (page - 1) * limit;
+      const skip = (safePage - 1) * safeLimit;
 
       const items = await Item.find(query)
         .populate('userId', 'firstName lastName username')
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(safeLimit);
 
       const total = await Item.countDocuments(query);
-      const pagination = generatePagination(page, limit, total);
+      const pagination = generatePagination(safePage, safeLimit, total);
 
       return { items, pagination };
     } catch (error) {

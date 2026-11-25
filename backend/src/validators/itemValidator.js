@@ -1,5 +1,100 @@
 const { body, param, query } = require('express-validator');
-const { ITEM_CATEGORIES, ITEM_CONDITIONS, ITEM_STATUSES } = require('../utils/constants');
+const { ITEM_CATEGORIES, ITEM_CONDITIONS, ITEM_STATUSES, PAGINATION } = require('../utils/constants');
+
+const ALLOWED_GENDERS = ['men', 'women', 'unisex'];
+const ALLOWED_SORT_MODES = ['newest', 'points_asc', 'points_desc'];
+const ALLOWED_GET_ITEMS_QUERY_KEYS = new Set([
+  'page',
+  'limit',
+  'category',
+  'condition',
+  'gender',
+  'size',
+  'minPoints',
+  'maxPoints',
+  'colour',
+  'material',
+  'brand',
+  'search',
+  'sort',
+  'sortBy',
+  'sortOrder'
+]);
+
+const splitCommaList = (rawValue) =>
+  rawValue
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+const ensureStringQueryParam = (field) =>
+  query(field)
+    .optional()
+    .custom((value) => {
+      if (typeof value !== 'string') {
+        throw new Error(`${field} must be a plain string`);
+      }
+      return true;
+    });
+
+const validateCommaSeparatedEnum = (field, allowedValues, label) =>
+  ensureStringQueryParam(field).custom((value) => {
+    const tokens = splitCommaList(value);
+    if (tokens.length === 0 || tokens.length > 10) {
+      throw new Error(`Invalid ${label}`);
+    }
+    const allowedSet = new Set(allowedValues);
+    if (!tokens.every((token) => allowedSet.has(token))) {
+      throw new Error(`Invalid ${label}`);
+    }
+    return true;
+  });
+
+const validateCommaSeparatedStrings = (field, maxLength, label) =>
+  ensureStringQueryParam(field).custom((value) => {
+    const tokens = splitCommaList(value);
+    if (tokens.length === 0 || tokens.length > 10) {
+      throw new Error(`Invalid ${label}`);
+    }
+    if (!tokens.every((token) => token.length >= 1 && token.length <= maxLength)) {
+      throw new Error(`${label} values must be between 1 and ${maxLength} characters`);
+    }
+    return true;
+  });
+
+const whitelistGetItemsQuery = (req, res, next) => {
+  const keys = Object.keys(req.query || {});
+  const badErrors = [];
+
+  for (const key of keys) {
+    if (!ALLOWED_GET_ITEMS_QUERY_KEYS.has(key) || key.startsWith('$')) {
+      badErrors.push({
+        field: key,
+        message: 'Unknown or disallowed query parameter',
+        value: req.query[key]
+      });
+      continue;
+    }
+
+    if (typeof req.query[key] !== 'string') {
+      badErrors.push({
+        field: key,
+        message: 'Query parameter must be a string',
+        value: req.query[key]
+      });
+    }
+  }
+
+  if (badErrors.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: badErrors
+    });
+  }
+
+  return next();
+};
 
 const createItemValidator = [
   body('title')
@@ -24,9 +119,24 @@ const createItemValidator = [
   
   body('brand')
     .optional()
+    .isString()
     .trim()
     .isLength({ max: 50 })
     .withMessage('Brand must be less than 50 characters'),
+
+  body('colour')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 40 })
+    .withMessage('Colour must be less than 40 characters'),
+
+  body('material')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 60 })
+    .withMessage('Material must be less than 60 characters'),
   
   body('size')
     .trim()
@@ -150,9 +260,24 @@ const updateItemValidator = [
   
   body('brand')
     .optional()
+    .isString()
     .trim()
     .isLength({ max: 50 })
     .withMessage('Brand must be less than 50 characters'),
+
+  body('colour')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 40 })
+    .withMessage('Colour must be less than 40 characters'),
+
+  body('material')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 60 })
+    .withMessage('Material must be less than 60 characters'),
   
   body('size')
     .optional()
@@ -202,60 +327,67 @@ const updateItemValidator = [
 ];
 
 const getItemsValidator = [
-  query('page')
-    .optional()
-    .isInt({ min: 1 })
+  whitelistGetItemsQuery,
+
+  ensureStringQueryParam('page')
+    .isInt({ min: 1, max: 10000 })
     .withMessage('Page must be a positive integer'),
-  
-  query('limit')
-    .optional()
-    .isInt({ min: 1, max: 50 })
-    .withMessage('Limit must be between 1 and 50'),
-  
-  query('category')
-    .optional()
-    .isIn(Object.values(ITEM_CATEGORIES))
-    .withMessage('Invalid category'),
-  
-  query('condition')
-    .optional()
-    .isIn(Object.values(ITEM_CONDITIONS))
-    .withMessage('Invalid condition'),
-  
-  query('gender')
-    .optional()
-    .isIn(['men', 'women', 'unisex'])
-    .withMessage('Invalid gender'),
-  
-  query('size')
-    .optional()
+
+  ensureStringQueryParam('limit')
+    .isInt({ min: 1, max: PAGINATION.MAX_LIMIT })
+    .withMessage(`Limit must be between 1 and ${PAGINATION.MAX_LIMIT}`),
+
+  validateCommaSeparatedEnum('category', Object.values(ITEM_CATEGORIES), 'category'),
+
+  validateCommaSeparatedEnum('condition', Object.values(ITEM_CONDITIONS), 'condition'),
+
+  validateCommaSeparatedEnum('gender', ALLOWED_GENDERS, 'gender'),
+
+  validateCommaSeparatedStrings('size', 20, 'size'),
+
+  validateCommaSeparatedStrings('colour', 40, 'colour'),
+
+  validateCommaSeparatedStrings('material', 40, 'material'),
+
+  ensureStringQueryParam('brand')
     .trim()
-    .notEmpty()
-    .withMessage('Size cannot be empty'),
-  
-  query('minPoints')
-    .optional()
-    .isInt({ min: 0 })
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Brand must be between 1 and 50 characters'),
+
+  ensureStringQueryParam('minPoints')
+    .matches(/^\d+$/)
+    .isInt({ min: 0, max: 100000 })
     .withMessage('Min points must be a non-negative integer'),
-  
-  query('maxPoints')
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage('Max points must be a non-negative integer'),
-  
-  query('search')
-    .optional()
+
+  ensureStringQueryParam('maxPoints')
+    .matches(/^\d+$/)
+    .isInt({ min: 0, max: 100000 })
+    .withMessage('Max points must be a non-negative integer')
+    .custom((value, { req }) => {
+      if (req.query.minPoints !== undefined) {
+        const min = parseInt(req.query.minPoints, 10);
+        const max = parseInt(value, 10);
+        if (min > max) {
+          throw new Error('maxPoints must be greater than or equal to minPoints');
+        }
+      }
+      return true;
+    }),
+
+  ensureStringQueryParam('search')
     .trim()
-    .isLength({ min: 2 })
-    .withMessage('Search term must be at least 2 characters'),
-  
-  query('sortBy')
-    .optional()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Search term must be between 1 and 100 characters'),
+
+  ensureStringQueryParam('sort')
+    .isIn(ALLOWED_SORT_MODES)
+    .withMessage('Invalid sort mode'),
+
+  ensureStringQueryParam('sortBy')
     .isIn(['createdAt', 'pointsValue', 'title'])
     .withMessage('Invalid sort field'),
-  
-  query('sortOrder')
-    .optional()
+
+  ensureStringQueryParam('sortOrder')
     .isIn(['asc', 'desc'])
     .withMessage('Sort order must be asc or desc')
 ];

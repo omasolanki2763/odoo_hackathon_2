@@ -28,7 +28,18 @@ const itemSchema = new mongoose.Schema({
   },
   brand: {
     type: String,
-    trim: true
+    trim: true,
+    maxlength: 50
+  },
+  colour: {
+    type: String,
+    trim: true,
+    maxlength: 40
+  },
+  material: {
+    type: String,
+    trim: true,
+    maxlength: 60
   },
   size: {
     type: String,
@@ -121,6 +132,11 @@ const itemSchema = new mongoose.Schema({
 itemSchema.index({ userId: 1 });
 itemSchema.index({ status: 1 });
 itemSchema.index({ category: 1 });
+itemSchema.index({ condition: 1 });
+itemSchema.index({ size: 1 });
+itemSchema.index({ colour: 1 });
+itemSchema.index({ material: 1 });
+itemSchema.index({ brand: 1 });
 itemSchema.index({ tags: 1 });
 itemSchema.index({ createdAt: -1 });
 itemSchema.index({ pointsValue: 1 });

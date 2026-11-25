@@ -56,6 +56,11 @@ const isValidEmail = (email) => {
   return emailRegex.test(email);
 };
 
+// Escape regular expression special characters for safe literal matching
+const escapeRegex = (str) => {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // Sanitize string for search
 const sanitizeSearchString = (str) => {
   return str
@@ -120,6 +125,7 @@ module.exports = {
   formatDateTime,
   calculateItemPoints,
   isValidEmail,
+  escapeRegex,
   sanitizeSearchString,
   generatePagination,
   calculateDistance,
