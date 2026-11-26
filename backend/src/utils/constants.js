@@ -23,6 +23,7 @@ const ITEM_STATUSES = {
   APPROVED: 'approved',
   REJECTED: 'rejected',
   AVAILABLE: 'available',
+  RESERVED: 'reserved',
   SWAPPED: 'swapped',
   REDEEMED: 'redeemed'
 };
@@ -39,8 +40,18 @@ const SWAP_STATUSES = {
   ACCEPTED: 'accepted',
   REJECTED: 'rejected',
   COMPLETED: 'completed',
-  CANCELLED: 'cancelled'
+  CANCELLED: 'cancelled',
+  EXPIRED: 'expired'
 };
+
+// Handover methods and expiry window
+const HANDOVER_METHODS = {
+  IN_PERSON: 'in_person',
+  POST: 'post'
+};
+
+const SWAP_EXPIRY_DAYS = 3;
+const SWAP_EXPIRY_MS = SWAP_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
 // User statuses
 const USER_STATUSES = {
@@ -80,7 +91,9 @@ const POINTS_TRANSACTION_TYPES = {
   RECEIVED: 'received',
   SENT: 'sent',
   BONUS: 'bonus',
-  PENALTY: 'penalty'
+  PENALTY: 'penalty',
+  HOLD: 'hold',
+  REFUND: 'refund'
 };
 
 // File upload limits
@@ -216,6 +229,9 @@ module.exports = {
   validateCategoryMeasurements,
   SWAP_TYPES,
   SWAP_STATUSES,
+  HANDOVER_METHODS,
+  SWAP_EXPIRY_DAYS,
+  SWAP_EXPIRY_MS,
   USER_STATUSES,
   NOTIFICATION_TYPES,
   ADMIN_ACTION_TYPES,

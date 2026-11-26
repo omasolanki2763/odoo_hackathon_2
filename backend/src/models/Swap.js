@@ -24,7 +24,7 @@ const swapSchema = new mongoose.Schema({
   status: {
     type: String,
     required: true,
-    enum: ['pending', 'accepted', 'rejected', 'completed', 'cancelled'],
+    enum: ['pending', 'accepted', 'rejected', 'completed', 'cancelled', 'expired'],
     default: 'pending'
   },
   requestedItemId: {
@@ -33,11 +33,25 @@ const swapSchema = new mongoose.Schema({
   },
   pointsOffered: {
     type: Number,
+    default: 0,
     min: 0
+  },
+  handoverMethod: {
+    type: String,
+    enum: ['in_person', 'post']
+  },
+  handoverNote: {
+    type: String,
+    trim: true,
+    maxlength: 300
   },
   message: {
     type: String,
+    trim: true,
     maxlength: 500
+  },
+  expiresAt: {
+    type: Date
   },
   response: {
     message: {
@@ -74,6 +88,7 @@ swapSchema.index({ requesterId: 1 });
 swapSchema.index({ itemOwnerId: 1 });
 swapSchema.index({ itemId: 1 });
 swapSchema.index({ status: 1 });
+swapSchema.index({ status: 1, expiresAt: 1 });
 swapSchema.index({ createdAt: -1 });
 
 // Method to add timeline entry

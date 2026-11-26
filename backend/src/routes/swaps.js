@@ -3,11 +3,19 @@ const router = express.Router();
 const swapController = require('../controllers/swapController');
 const auth = require('../middleware/auth');
 const validate = require('../middleware/validation');
-const { createSwapValidator, updateSwapValidator, getSwapsValidator, getSwapValidator } = require('../validators/swapValidator');
+const {
+  createSwapValidator,
+  quoteValidator,
+  getSwapsValidator,
+  getSwapValidator
+} = require('../validators/swapValidator');
 const { body } = require('express-validator');
 
 // Get user's swaps (authenticated)
 router.get('/', auth, getSwapsValidator, validate, swapController.getUserSwaps);
+
+// Get balance quote before creating a swap or redeem request (must precede /:id)
+router.get('/quote', auth, quoteValidator, validate, swapController.getQuote);
 
 // Get swap by ID (authenticated)
 router.get('/:id', auth, getSwapValidator, validate, swapController.getSwapById);
@@ -20,11 +28,12 @@ router.post('/redeem', auth, [
   body('itemId')
     .isMongoId()
     .withMessage('Invalid item ID'),
-  
+
   body('pointsOffered')
+    .optional()
     .isInt({ min: 1 })
     .withMessage('Points offered must be a positive integer'),
-  
+
   body('message')
     .optional()
     .trim()
@@ -37,8 +46,9 @@ router.post('/redeem/direct', auth, [
   body('itemId')
     .isMongoId()
     .withMessage('Invalid item ID'),
-  
+
   body('pointsOffered')
+    .optional()
     .isInt({ min: 1 })
     .withMessage('Points offered must be a positive integer')
 ], validate, swapController.directRedeem);
@@ -55,4 +65,4 @@ router.put('/:id/complete', auth, getSwapValidator, validate, swapController.com
 // Cancel swap (authenticated)
 router.put('/:id/cancel', auth, getSwapValidator, validate, swapController.cancelSwap);
 
-module.exports = router; 
+module.exports = router;
