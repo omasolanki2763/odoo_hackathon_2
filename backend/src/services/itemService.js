@@ -1,5 +1,6 @@
 const Item = require('../models/Item');
 const User = require('../models/User');
+const swapService = require('./swapService');
 const { calculateItemPoints, generatePagination, escapeRegex } = require('../utils/helpers');
 const { PAGINATION } = require('../utils/constants');
 const Notification = require('../models/Notification');
@@ -76,6 +77,8 @@ class ItemService {
   // Get items with filtering and pagination
   async getItems(filters = {}, page = PAGINATION.DEFAULT_PAGE, limit = PAGINATION.DEFAULT_LIMIT, sortOptions = 'newest') {
     try {
+      await swapService.expirePendingSwaps();
+
       const safePage = Math.max(1, Number.isFinite(Number(page)) ? Math.floor(Number(page)) : PAGINATION.DEFAULT_PAGE);
       const safeLimit = Math.min(
         Math.max(1, Number.isFinite(Number(limit)) ? Math.floor(Number(limit)) : PAGINATION.DEFAULT_LIMIT),
@@ -146,6 +149,8 @@ class ItemService {
   // Get item by ID
   async getItemById(itemId) {
     try {
+      await swapService.expirePendingSwaps();
+
       const item = await Item.findById(itemId)
         .populate('userId', 'firstName lastName username profile createdAt');
 
@@ -211,6 +216,8 @@ class ItemService {
   // Get user's items
   async getUserItems(userId, page = 1, limit = 10) {
     try {
+      await swapService.expirePendingSwaps();
+
       const skip = (page - 1) * limit;
 
       const items = await Item.find({ userId })

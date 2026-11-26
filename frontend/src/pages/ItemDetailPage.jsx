@@ -40,6 +40,8 @@ const formatStatusBadge = (status) => {
     case 'available':
     case 'approved':
       return { label: 'Available', className: 'detail-status-available' };
+    case 'reserved':
+      return { label: 'Reserved', className: 'detail-status-pending' };
     case 'pending':
       return { label: 'Pending Review', className: 'detail-status-pending' };
     case 'swapped':
@@ -247,15 +249,18 @@ const ItemDetailPage = () => {
         itemId: item._id,
         requestedItemId: selectedSwapItemId,
         type: 'swap',
+        handoverMethod: 'in_person',
         message:
           swapMessage.trim() ||
           `I would like to swap my "${offered?.title || 'garment'}" for your "${item.title}".`,
       });
+      setItem((prev) => (prev ? { ...prev, status: 'reserved' } : prev));
+      setUserItems((prev) => prev.filter((entry) => entry._id !== selectedSwapItemId));
       setShowSwapModal(false);
       setSwapMessage('');
       setActionBanner({
         type: 'success',
-        text: 'Swap proposal sent. Nothing moves until the owner accepts your request.',
+        text: 'Swap proposal sent. Both garments are reserved for up to 3 days while the owner responds.',
       });
     } catch (err) {
       const msg = err.response?.data?.errors?.[0]?.message || err.response?.data?.message;

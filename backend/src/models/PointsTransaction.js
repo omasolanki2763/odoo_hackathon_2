@@ -9,7 +9,7 @@ const pointsTransactionSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['earned', 'spent', 'received', 'sent', 'bonus', 'penalty']
+    enum: ['earned', 'spent', 'received', 'sent', 'bonus', 'penalty', 'hold', 'refund']
   },
   amount: {
     type: Number,
@@ -80,7 +80,8 @@ pointsTransactionSchema.statics.createTransaction = function(userId, type, amoun
 
 // Virtual for formatted amount
 pointsTransactionSchema.virtual('formattedAmount').get(function() {
-  const sign = this.type === 'earned' || this.type === 'received' || this.type === 'bonus' ? '+' : '-';
+  const creditTypes = ['earned', 'received', 'bonus', 'refund'];
+  const sign = creditTypes.includes(this.type) ? '+' : '-';
   return `${sign}${this.amount}`;
 });
 

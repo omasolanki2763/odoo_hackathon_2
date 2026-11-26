@@ -120,7 +120,7 @@ const itemSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'available', 'swapped', 'redeemed'],
+    enum: ['pending', 'approved', 'rejected', 'available', 'reserved', 'swapped', 'redeemed'],
     default: 'pending'
   },
   location: {

@@ -1,7 +1,25 @@
 const swapService = require('../services/swapService');
-const { successResponse, errorResponse, notFoundResponse, createdResponse } = require('../utils/response');
+const { successResponse, errorResponse, createdResponse } = require('../utils/response');
 
 class SwapController {
+  // Get swap or redeem quote
+  async getQuote(req, res) {
+    try {
+      const requesterId = req.user._id;
+      const { item: itemId, offer: offerId, topUp } = req.query;
+
+      const quote = await swapService.getQuote(requesterId, {
+        itemId,
+        offerId,
+        topUp
+      });
+
+      return successResponse(res, quote);
+    } catch (error) {
+      return errorResponse(res, error.message, error.statusCode || 500);
+    }
+  }
+
   // Get user's swaps
   async getUserSwaps(req, res) {
     try {
@@ -9,11 +27,11 @@ class SwapController {
       const { page = 1, limit = 10, status, type } = req.query;
 
       const filters = { status, type };
-      const result = await swapService.getUserSwaps(userId, filters, parseInt(page), parseInt(limit));
+      const result = await swapService.getUserSwaps(userId, filters, parseInt(page, 10), parseInt(limit, 10));
 
       return successResponse(res, result);
     } catch (error) {
-      return errorResponse(res, error.message);
+      return errorResponse(res, error.message, error.statusCode || 500);
     }
   }
 
@@ -27,7 +45,7 @@ class SwapController {
 
       return successResponse(res, swap);
     } catch (error) {
-      return notFoundResponse(res, error.message);
+      return errorResponse(res, error.message, error.statusCode || 404);
     }
   }
 
@@ -41,7 +59,7 @@ class SwapController {
 
       return createdResponse(res, swap, 'Swap request created successfully');
     } catch (error) {
-      return errorResponse(res, error.message);
+      return errorResponse(res, error.message, error.statusCode || 500);
     }
   }
 
@@ -55,7 +73,7 @@ class SwapController {
 
       return createdResponse(res, swap, 'Item redemption request created successfully');
     } catch (error) {
-      return errorResponse(res, error.message);
+      return errorResponse(res, error.message, error.statusCode || 500);
     }
   }
 
@@ -69,7 +87,7 @@ class SwapController {
 
       return successResponse(res, result, 'Item redeemed successfully');
     } catch (error) {
-      return errorResponse(res, error.message);
+      return errorResponse(res, error.message, error.statusCode || 500);
     }
   }
 
@@ -83,7 +101,7 @@ class SwapController {
 
       return successResponse(res, swap, 'Swap accepted successfully');
     } catch (error) {
-      return errorResponse(res, error.message);
+      return errorResponse(res, error.message, error.statusCode || 500);
     }
   }
 
@@ -98,7 +116,7 @@ class SwapController {
 
       return successResponse(res, swap, 'Swap rejected successfully');
     } catch (error) {
-      return errorResponse(res, error.message);
+      return errorResponse(res, error.message, error.statusCode || 500);
     }
   }
 
@@ -112,7 +130,7 @@ class SwapController {
 
       return successResponse(res, swap, 'Swap completed successfully');
     } catch (error) {
-      return errorResponse(res, error.message);
+      return errorResponse(res, error.message, error.statusCode || 500);
     }
   }
 
@@ -126,9 +144,9 @@ class SwapController {
 
       return successResponse(res, swap, 'Swap cancelled successfully');
     } catch (error) {
-      return errorResponse(res, error.message);
+      return errorResponse(res, error.message, error.statusCode || 500);
     }
   }
 }
 
-module.exports = new SwapController(); 
+module.exports = new SwapController();
