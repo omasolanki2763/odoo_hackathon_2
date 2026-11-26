@@ -13,6 +13,7 @@ const AddItemPage = lazy(() => import('./pages/AddItemPage'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const ItemsPage = lazy(() => import('./pages/ItemsPage'));
 const SwapDetailPage = lazy(() => import('./pages/SwapDetailPage'));
+const ProposeSwapPage = lazy(() => import('./pages/ProposeSwapPage'));
 
 const LoadingSpinner = () => (
   <div className="app-shell-loading" role="status" aria-label="Loading page">
@@ -67,6 +68,14 @@ function App() {
               }
             />
             <Route path="/items/:id" element={<ItemDetailPage />} />
+            <Route
+              path="/swaps/new"
+              element={
+                <ProtectedRoute>
+                  <ProposeSwapPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/swaps/:id"
               element={

@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
+import RedeemModal from '../components/RedeemModal';
+import { refreshSessionUser } from '../utils/refreshSessionUser';
 import '../styles/ItemDetailPage.css';
 
 const CONDITION_RUBRIC = {
@@ -96,19 +98,18 @@ const ItemDetailPage = () => {
   const [relatedItems, setRelatedItems] = useState([]);
 
   const [currentUserId, setCurrentUserId] = useState(() => readStoredUserId());
-  const [userPoints, setUserPoints] = useState(0);
   const [selectedImage, setSelectedImage] = useState(0);
   const [failedImages, setFailedImages] = useState({});
 
   const [actionBanner, setActionBanner] = useState({ type: '', text: '' });
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
+  const [redeemQuote, setRedeemQuote] = useState(null);
+  const [redeemQuoteLoading, setRedeemQuoteLoading] = useState(false);
+  const [redeemQuoteError, setRedeemQuoteError] = useState('');
+  const [redeemSubmitError, setRedeemSubmitError] = useState('');
   const [redeeming, setRedeeming] = useState(false);
 
-  const [showSwapModal, setShowSwapModal] = useState(false);
-  const [userItems, setUserItems] = useState([]);
-  const [loadingUserItems, setLoadingUserItems] = useState(false);
-  const [selectedSwapItemId, setSelectedSwapItemId] = useState('');
-  const [swapMessage, setSwapMessage] = useState('');
-  const [submittingSwap, setSubmittingSwap] = useState(false);
+  const redeemBtnRef = useRef(null);
 
   const loadItemDetails = useCallback(async () => {
     setLoading(true);
@@ -144,7 +145,11 @@ const ItemDetailPage = () => {
           const profileUser = profileRes.data?.data;
           if (profileUser) {
             setCurrentUserId(profileUser._id || profileUser.id || null);
-            setUserPoints(typeof profileUser.points === 'number' ? profileUser.points : 0);
+            const previousRaw = localStorage.getItem('userData');
+            localStorage.setItem('userData', JSON.stringify(profileUser));
+            if (previousRaw !== JSON.stringify(profileUser)) {
+              window.dispatchEvent(new CustomEvent('auth-change', { detail: profileUser }));
+            }
           }
         } catch (profileErr) {
           if (profileErr.response?.status === 401) {
@@ -168,17 +173,6 @@ const ItemDetailPage = () => {
   useEffect(() => {
     loadItemDetails();
   }, [loadItemDetails]);
-
-  useEffect(() => {
-    if (!showSwapModal) return undefined;
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setShowSwapModal(false);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showSwapModal]);
 
   const owner = item?.userId && typeof item.userId === 'object' ? item.userId : null;
   const ownerId = owner?._id || (typeof item?.userId === 'string' ? item.userId : null);
@@ -206,108 +200,65 @@ const ItemDetailPage = () => {
       .filter(Boolean);
   }, [item]);
 
-  const openSwapModal = async () => {
+  const openRedeemModal = async () => {
     setActionBanner({ type: '', text: '' });
     if (!localStorage.getItem('token')) {
       navigate('/login');
       return;
     }
 
-    setShowSwapModal(true);
-    setLoadingUserItems(true);
-    try {
-      const res = await api.get('/auth/dashboard');
-      const allItems = res.data?.data?.recentItems || [];
-      const swappable = allItems.filter(
-        (candidate) =>
-          candidate._id !== item._id &&
-          (candidate.status === 'available' ||
-            candidate.status === 'approved' ||
-            candidate.status === 'pending')
-      );
-      setUserItems(swappable);
-      setSelectedSwapItemId(swappable[0]?._id || '');
-    } catch {
-      setActionBanner({ type: 'error', text: 'Could not load items from your rack right now.' });
-      setShowSwapModal(false);
-    } finally {
-      setLoadingUserItems(false);
-    }
-  };
+    setRedeemQuote(null);
+    setRedeemQuoteError('');
+    setRedeemSubmitError('');
+    setRedeemQuoteLoading(true);
+    setShowRedeemModal(true);
 
-  const handleSwapSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedSwapItemId) {
-      setActionBanner({ type: 'error', text: 'Select a garment from your rack to offer.' });
-      return;
-    }
-
-    const offered = userItems.find((entry) => entry._id === selectedSwapItemId);
-    setSubmittingSwap(true);
     try {
-      await api.post('/swaps', {
-        itemId: item._id,
-        requestedItemId: selectedSwapItemId,
-        type: 'swap',
-        handoverMethod: 'in_person',
-        message:
-          swapMessage.trim() ||
-          `I would like to swap my "${offered?.title || 'garment'}" for your "${item.title}".`,
+      const quoteRes = await api.get('/swaps/quote', {
+        params: { item: item._id },
       });
-      setItem((prev) => (prev ? { ...prev, status: 'reserved' } : prev));
-      setUserItems((prev) => prev.filter((entry) => entry._id !== selectedSwapItemId));
-      setShowSwapModal(false);
-      setSwapMessage('');
-      setActionBanner({
-        type: 'success',
-        text: 'Swap proposal sent. Both garments are reserved for up to 3 days while the owner responds.',
-      });
+      setRedeemQuote(quoteRes.data?.data || null);
     } catch (err) {
-      const msg = err.response?.data?.errors?.[0]?.message || err.response?.data?.message;
-      setActionBanner({ type: 'error', text: msg || 'Failed to send swap proposal.' });
+      setRedeemQuoteError(
+        err.response?.data?.errors?.[0]?.message ||
+          err.response?.data?.message ||
+          'Unable to check points balance for this garment right now.'
+      );
     } finally {
-      setSubmittingSwap(false);
+      setRedeemQuoteLoading(false);
     }
   };
 
-  const handleRedeem = async () => {
-    setActionBanner({ type: '', text: '' });
-    if (!localStorage.getItem('token')) {
-      navigate('/login');
+  const handleConfirmRedeem = async () => {
+    if (!item || !redeemQuote?.canAfford) {
       return;
     }
 
-    if (userPoints < pointsCost) {
-      setActionBanner({
-        type: 'error',
-        text: `Insufficient balance: you have ${userPoints} points and this piece requires ${pointsCost} points.`,
-      });
-      return;
-    }
-
+    const redeemCost = typeof redeemQuote.cost === 'number' ? redeemQuote.cost : pointsCost;
+    setRedeemSubmitError('');
     setRedeeming(true);
     try {
       const res = await api.post('/swaps/redeem/direct', {
         itemId: item._id,
-        pointsOffered: pointsCost,
+        pointsOffered: redeemCost,
       });
       if (res.data?.data?.item) {
         setItem(res.data.data.item);
       } else {
         setItem((prev) => (prev ? { ...prev, status: 'redeemed' } : prev));
       }
-      if (typeof res.data?.data?.user?.points === 'number') {
-        setUserPoints(res.data.data.user.points);
-      }
+      await refreshSessionUser();
+      setShowRedeemModal(false);
       setActionBanner({
         type: 'success',
-        text: `Redeemed for ${pointsCost} points. Check your swaps dashboard for handoff updates.`,
+        text: `Redeemed for ${redeemCost} points. Check your swaps dashboard for handoff updates.`,
       });
     } catch (err) {
-      setActionBanner({
-        type: 'error',
-        text: err.response?.data?.message || 'Unable to complete points redemption.',
-      });
+      setRedeemSubmitError(
+        err.response?.data?.errors?.[0]?.message ||
+          err.response?.data?.message ||
+          'Unable to complete points redemption.'
+      );
     } finally {
       setRedeeming(false);
     }
@@ -534,19 +485,28 @@ const ItemDetailPage = () => {
               </div>
             ) : (
               <div className="detail-actions">
+                {isAvailable ? (
+                  <Link
+                    to={`/swaps/new?item=${item._id}`}
+                    className="detail-btn detail-btn-primary"
+                  >
+                    Propose a swap
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    className="detail-btn detail-btn-primary"
+                    disabled
+                  >
+                    Propose a swap
+                  </button>
+                )}
                 <button
-                  type="button"
-                  className="detail-btn detail-btn-primary"
-                  disabled={!isAvailable}
-                  onClick={openSwapModal}
-                >
-                  Propose a swap
-                </button>
-                <button
+                  ref={redeemBtnRef}
                   type="button"
                   className="detail-btn detail-btn-secondary"
                   disabled={!isAvailable || redeeming}
-                  onClick={handleRedeem}
+                  onClick={openRedeemModal}
                 >
                   {redeeming ? 'Completing redemption…' : `Redeem for ${pointsCost} points`}
                 </button>
@@ -692,103 +652,19 @@ const ItemDetailPage = () => {
         )}
       </div>
 
-      {/* Propose a Swap Modal */}
-      {showSwapModal && (
-        <div
-          className="detail-modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowSwapModal(false);
-          }}
-        >
-          <div
-            className="detail-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="swap-modal-title"
-          >
-            <h2 id="swap-modal-title" className="detail-section-title">
-              Propose a Swap
-            </h2>
-            <p className="detail-status-summary">
-              Select a piece from your rack to offer for &ldquo;{item.title}&rdquo;.
-            </p>
-
-            {loadingUserItems ? (
-              <p className="detail-measurements-empty" style={{ margin: 'var(--space-5) 0' }}>
-                Loading your garments…
-              </p>
-            ) : userItems.length === 0 ? (
-              <div style={{ margin: 'var(--space-5) 0' }}>
-                <p className="detail-description">
-                  You have no available garments listed yet to offer in exchange.
-                </p>
-                <div style={{ marginTop: 'var(--space-4)', display: 'flex', gap: 'var(--space-3)' }}>
-                  <Link to="/add-item" className="detail-btn detail-btn-primary">
-                    + List an Item First
-                  </Link>
-                  <button
-                    type="button"
-                    className="detail-btn detail-btn-secondary"
-                    onClick={() => setShowSwapModal(false)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSwapSubmit}>
-                <div className="detail-modal-list" role="radiogroup" aria-label="Your rack items">
-                  {userItems.map((candidate) => {
-                    const selected = selectedSwapItemId === candidate._id;
-                    return (
-                      <button
-                        key={candidate._id}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        className={`detail-modal-item-btn${
-                          selected ? ' detail-modal-item-btn-selected' : ''
-                        }`}
-                        onClick={() => setSelectedSwapItemId(candidate._id)}
-                      >
-                        <span>
-                          <strong>{candidate.title}</strong> ({candidate.size})
-                        </span>
-                        <span>{candidate.pointsValue || 50} PTS</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <textarea
-                  className="detail-modal-textarea"
-                  aria-label="Message to owner"
-                  placeholder="Optional note to the owner (meetup details, fit question)…"
-                  value={swapMessage}
-                  onChange={(e) => setSwapMessage(e.target.value)}
-                />
-
-                <div className="detail-modal-actions">
-                  <button
-                    type="button"
-                    className="detail-btn detail-btn-secondary"
-                    onClick={() => setShowSwapModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="detail-btn detail-btn-primary"
-                    disabled={submittingSwap || !selectedSwapItemId}
-                  >
-                    {submittingSwap ? 'Sending…' : 'Send Swap Request'}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+      <RedeemModal
+        isOpen={showRedeemModal}
+        item={item}
+        ownerUsername={owner?.username}
+        quote={redeemQuote}
+        quoteLoading={redeemQuoteLoading}
+        quoteError={redeemQuoteError}
+        submitError={redeemSubmitError}
+        submitting={redeeming}
+        onClose={() => setShowRedeemModal(false)}
+        onConfirm={handleConfirmRedeem}
+        triggerRef={redeemBtnRef}
+      />
     </div>
   );
 };
