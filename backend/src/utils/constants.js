@@ -125,6 +125,9 @@ const MESSAGES = {
   SWAP_ALREADY_EXISTS: 'Swap request already exists for this item'
 };
 
+// Starter points awarded on new account creation
+const STARTER_POINTS = 100;
+
 // HTTP status codes
 const STATUS_CODES = {
   OK: 200,
@@ -236,6 +239,7 @@ module.exports = {
   NOTIFICATION_TYPES,
   ADMIN_ACTION_TYPES,
   POINTS_TRANSACTION_TYPES,
+  STARTER_POINTS,
   UPLOAD_LIMITS,
   PAGINATION,
   MESSAGES,

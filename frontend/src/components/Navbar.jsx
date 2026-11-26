@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { getToken, getStoredUser, clearAuthSession } from '../utils/authStorage';
 
 const NAV_LINKS = [
   { to: '/items', label: 'Browse Catalogue' },
@@ -7,15 +8,6 @@ const NAV_LINKS = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/swaps', label: 'Swaps' },
 ];
-
-const readStoredUser = () => {
-  try {
-    const raw = localStorage.getItem('userData');
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-};
 
 const Navbar = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -28,10 +20,10 @@ const Navbar = () => {
   const avatarMenuRef = useRef(null);
 
   const checkAuth = useCallback(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (token) {
       setIsAuthenticated(true);
-      setUser(readStoredUser());
+      setUser(getStoredUser() || {});
     } else {
       setIsAuthenticated(false);
       setUser(null);
@@ -84,13 +76,11 @@ const Navbar = () => {
   }, []);
 
   const handleLogout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userData');
+    clearAuthSession();
     setIsAuthenticated(false);
     setUser(null);
     setAvatarMenuOpen(false);
     setMobileMenuOpen(false);
-    window.dispatchEvent(new Event('auth-change'));
     navigate('/');
   }, [navigate]);
 

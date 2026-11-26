@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import { getToken, getStoredUser } from './utils/authStorage';
 
 // Lazy load components for better performance
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -20,13 +21,13 @@ const LoadingSpinner = () => (
 );
 
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
   return token ? children : <Navigate to="/login" replace />;
 };
 
 const AdminRoute = ({ children }) => {
-  const token = localStorage.getItem('token');
-  const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+  const token = getToken();
+  const userData = getStoredUser() || {};
 
   if (!token) {
     return <Navigate to="/login" replace />;

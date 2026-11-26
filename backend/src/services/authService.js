@@ -1,113 +1,121 @@
 const User = require('../models/User');
 const { generateToken } = require('../config/jwt');
-const { calculateItemPoints } = require('../utils/helpers');
 const Notification = require('../models/Notification');
 const PointsTransaction = require('../models/PointsTransaction');
+const { POINTS_TRANSACTION_TYPES, STARTER_POINTS } = require('../utils/constants');
 
 class AuthService {
-  // Register new user
+  // Register new user and record starter points in a single rollback-safe flow
   async register(userData) {
-    try {
-      console.log('AuthService register called with:', userData); // Debug log
-      
-      // Check if user already exists
-      const existingUser = await User.findOne({ 
-        $or: [
-          { email: userData.email },
-          { username: userData.username }
-        ]
-      });
-      if (existingUser) {
-        if (existingUser.email === userData.email) {
-          throw new Error('User with this email already exists');
-        } else {
-          throw new Error('Username already taken');
-        }
-      }
+    const normalizedEmail = String(userData.email || '').trim().toLowerCase();
+    const normalizedUsername = String(userData.username || '').trim();
 
-      // Generate firstName and lastName from username
-      const firstName = userData.username.charAt(0).toUpperCase() + userData.username.slice(1);
-      const lastName = 'User';
-
-      // Create new user with welcome points
-      const user = new User({
-        ...userData,
-        firstName,
-        lastName,
-        points: 100 // Give new users 100 welcome points
-      });
-      console.log('Saving user to database:', user); // Debug log
-      await user.save();
-      console.log('User saved successfully'); // Debug log
-
-      // Create welcome notification
-      try {
-        await Notification.createNotification(
-          user._id,
-          'welcome',
-          'Welcome to ReWear!',
-          'Thank you for joining our sustainable fashion community. Start by uploading your first item!'
-        );
-        console.log('Welcome notification created'); // Debug log
-      } catch (notificationError) {
-        console.error('Failed to create welcome notification:', notificationError); // Debug log
-        // Don't fail registration if notification fails
-      }
-
-      // Generate token
-      const token = generateToken(user._id);
-      console.log('Token generated successfully'); // Debug log
-
-      return {
-        user: user.toJSON(),
-        token
-      };
-    } catch (error) {
-      console.error('AuthService register error:', error); // Debug log
-      throw error;
+    const existingUser = await User.findOne({
+      $or: [
+        { email: normalizedEmail },
+        { username: normalizedUsername }
+      ]
+    });
+    if (existingUser) {
+      const dupError = new Error(
+        existingUser.email === normalizedEmail
+          ? 'User with this email already exists'
+          : 'Username already taken'
+      );
+      dupError.statusCode = 400;
+      throw dupError;
     }
+
+    const firstName = normalizedUsername.charAt(0).toUpperCase() + normalizedUsername.slice(1);
+    const lastName = 'User';
+
+    // Start new user at 0 points, record ledger entry, then credit balance
+    const user = new User({
+      username: normalizedUsername,
+      email: normalizedEmail,
+      password: userData.password,
+      firstName,
+      lastName,
+      points: 0
+    });
+
+    try {
+      await user.save();
+    } catch (saveError) {
+      if (saveError.code === 11000) {
+        const dupError = new Error('User with this email or username already exists');
+        dupError.statusCode = 400;
+        throw dupError;
+      }
+      throw saveError;
+    }
+
+    let welcomeTransaction = null;
+    try {
+      welcomeTransaction = await PointsTransaction.createTransaction(
+        user._id,
+        POINTS_TRANSACTION_TYPES.BONUS,
+        STARTER_POINTS,
+        'Welcome points',
+        {
+          balance: STARTER_POINTS,
+          metadata: {
+            source: 'welcome_bonus',
+            reason: 'Starter points on account creation'
+          }
+        }
+      );
+
+      user.points = STARTER_POINTS;
+      await user.save();
+    } catch (creditError) {
+      if (welcomeTransaction && welcomeTransaction._id) {
+        await PointsTransaction.deleteOne({ _id: welcomeTransaction._id }).catch(() => {});
+      }
+      await User.findByIdAndDelete(user._id).catch(() => {});
+      throw creditError;
+    }
+
+    // Create welcome notification without blocking account creation
+    try {
+      await Notification.createNotification(
+        user._id,
+        'welcome',
+        'Welcome to ReWear!',
+        'Thank you for joining our sustainable fashion community. Start by uploading your first item!'
+      );
+    } catch (_) {
+      // Non-fatal notification failure
+    }
+
+    const token = generateToken(user._id);
+
+    return {
+      user: user.toJSON(),
+      token
+    };
   }
 
-  // Login user
+  // Login user without leaking whether an email exists
   async login(email, password) {
-    try {
-      console.log('🔍 Looking for user with email:', email); // Debug log
-      
-      // Find user by email
-      const user = await User.findOne({ email }).select('+password');
-      if (!user) {
-        console.log('❌ User not found for email:', email); // Debug log
-        throw new Error('Invalid email or password');
-      }
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
-      console.log('✅ User found:', user.username); // Debug log
-
-      // Check if account is active
-      if (user.status !== 'active') {
-        console.log('❌ Account not active for:', email); // Debug log
-        throw new Error('Account is not active');
-      }
-
-      // Verify password
-      console.log('🔐 Verifying password for user:', user.username); // Debug log
-      const isPasswordValid = await user.comparePassword(password);
-      if (!isPasswordValid) {
-        console.log('❌ Invalid password for user:', user.username); // Debug log
-        throw new Error('Invalid email or password');
-      }
-
-      console.log('✅ Password verified for user:', user.username); // Debug log
-
-      // Generate token
-      const token = generateToken(user._id);
-
-      return {
-        user: user.toJSON(),
-        token
-      };
-    } catch (error) {
-      throw error;
+    const isPasswordValid = user ? await user.comparePassword(password) : false;
+    if (!user || !isPasswordValid) {
+      throw new Error('Invalid email or password');
     }
+
+    if (user.status !== 'active') {
+      throw new Error('Account is not active');
+    }
+
+    const token = generateToken(user._id);
+
+    return {
+      user: user.toJSON(),
+      token
+    };
   }
 
   // Get user profile

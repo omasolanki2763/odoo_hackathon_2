@@ -5,7 +5,6 @@ class AuthController {
   // Register new user
   async register(req, res) {
     try {
-      console.log('Registration request body:', req.body); // Debug log
       const { username, email, password } = req.body;
 
       const result = await authService.register({
@@ -14,26 +13,23 @@ class AuthController {
         password
       });
 
-      console.log('Registration successful:', result); // Debug log
       return createdResponse(res, result, 'User registered successfully');
     } catch (error) {
-      console.error('Registration error:', error); // Debug log
-      return errorResponse(res, error.message);
+      const statusCode = error.statusCode
+        || (error.code === 11000 || error.name === 'ValidationError' ? 400 : 500);
+      return errorResponse(res, error.message, statusCode);
     }
   }
 
   // Login user
   async login(req, res) {
     try {
-      console.log('🔐 Login attempt for email:', req.body.email); // Debug log
       const { email, password } = req.body;
 
       const result = await authService.login(email, password);
 
-      console.log('✅ Login successful for:', email); // Debug log
       return successResponse(res, result, 'Login successful');
     } catch (error) {
-      console.log('❌ Login failed for:', req.body.email, 'Error:', error.message); // Debug log
       return unauthorizedResponse(res, error.message);
     }
   }
