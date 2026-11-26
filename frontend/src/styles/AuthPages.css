@@ -452,6 +452,8 @@
 /* Mobile (390px phone layout aligned to 07p-register-phone-390.png) */
 @media (max-width: 768px) {
   .auth-page {
+    margin-left: calc(-1 * var(--space-4));
+    margin-right: calc(-1 * var(--space-4));
     padding: var(--space-3) 0 var(--space-10);
   }
 
