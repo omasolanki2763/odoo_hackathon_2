@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import api from '../api';
+import { getToken } from '../utils/authStorage';
 
 const DashboardPage = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const [showWelcome, setShowWelcome] = useState(
+    searchParams.get('welcome') === '1' || Boolean(location.state?.welcome)
+  );
   const [user, setUser] = useState({
     username: '',
     email: '',
@@ -19,20 +25,15 @@ const DashboardPage = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         if (!token) {
-          console.log('❌ No token found, redirecting to login');
           window.location.href = '/login';
           return;
         }
 
-        console.log('🔄 Fetching dashboard data with token...');
-        
         // Fetch dashboard data from API
         const res = await api.get('/auth/dashboard');
         const dashboardData = res.data.data;
-        
-        console.log('✅ Dashboard data received:', dashboardData);
 
         setUser({
           username: dashboardData.user.username,
@@ -41,18 +42,9 @@ const DashboardPage = () => {
           joinedDate: new Date(dashboardData.user.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
         });
 
-        console.log('👤 User data set:', {
-          username: dashboardData.user.username,
-          email: dashboardData.user.email,
-          points: dashboardData.user.points || 0
-        });
-
         setMyItems(dashboardData.recentItems || []);
         setPurchasedItems(dashboardData.purchasedItems || []);
         setSwaps(dashboardData.recentSwaps || []);
-        
-        console.log('📦 Items count:', dashboardData.recentItems?.length || 0);
-        console.log('🔄 Swaps count:', dashboardData.recentSwaps?.length || 0);
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
         setError('Failed to load dashboard data');
@@ -64,8 +56,92 @@ const DashboardPage = () => {
     fetchDashboardData();
   }, []);
 
+  const dismissWelcome = () => {
+    setShowWelcome(false);
+    if (searchParams.has('welcome')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('welcome');
+      setSearchParams(next, { replace: true });
+    }
+  };
+
   return (
     <div>
+      {showWelcome && (
+        <section
+          className="container"
+          role="status"
+          aria-live="polite"
+          data-testid="dashboard-welcome-banner"
+          style={{
+            marginBottom: 'var(--space-6)',
+            padding: 'var(--space-6)',
+            background: 'var(--color-green-bg)',
+            border: '1px solid var(--color-green)',
+            color: 'var(--color-ink)'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
+            <div>
+              <p className="font-label" style={{ margin: '0 0 var(--space-1)', color: 'var(--color-green)' }}>
+                WELCOME TO RE:WEAR
+              </p>
+              <h1 style={{ margin: '0 0 var(--space-2)', fontFamily: 'var(--font-display)', fontSize: 'var(--font-size-2xl)', fontWeight: 500 }}>
+                Welcome{user.username ? `, @${user.username}` : ''}! You received +{location.state?.starterPoints || 100} starter points.
+              </h1>
+              <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-base)', color: 'var(--color-ink)' }}>
+                Your starter balance has been recorded in your ledger. Browse the catalogue or list your first garment.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-4)', flexWrap: 'wrap' }}>
+                <Link
+                  to="/items"
+                  style={{
+                    padding: 'var(--space-2) var(--space-4)',
+                    background: 'var(--color-ink)',
+                    color: 'var(--color-card)',
+                    fontFamily: 'var(--font-ui)',
+                    fontSize: 'var(--font-size-sm)',
+                    fontWeight: 600,
+                    textDecoration: 'none'
+                  }}
+                >
+                  Browse Catalogue
+                </Link>
+                <Link
+                  to="/add-item"
+                  style={{
+                    padding: 'var(--space-2) var(--space-4)',
+                    background: 'var(--color-card)',
+                    color: 'var(--color-ink)',
+                    border: '1px solid var(--color-ink)',
+                    fontFamily: 'var(--font-ui)',
+                    fontSize: 'var(--font-size-sm)',
+                    fontWeight: 600,
+                    textDecoration: 'none'
+                  }}
+                >
+                  List an Item
+                </Link>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissWelcome}
+              aria-label="Dismiss welcome notice"
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--color-green)',
+                color: 'var(--color-green)',
+                padding: 'var(--space-1) var(--space-3)',
+                fontFamily: 'var(--font-label)',
+                cursor: 'pointer'
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </section>
+      )}
       {/* Profile Section */}
       <section className="container" style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', flexWrap: 'wrap' }}>
