@@ -608,8 +608,15 @@ class SwapService {
       throw createServiceError('Swap must be accepted before completion', 400);
     }
 
+    const now = new Date();
     swap.status = SWAP_STATUSES.COMPLETED;
-    swap.completedAt = new Date();
+    swap.completedAt = now;
+    swap.timeline.push({
+      action: 'Status changed to completed',
+      date: now,
+      userId,
+      details: 'Swap marked as completed'
+    });
     await swap.save();
 
     try {
@@ -759,9 +766,14 @@ class SwapService {
   async getUserSwaps(userId, filters = {}, page = 1, limit = 10) {
     await this.expirePendingSwaps();
 
-    const query = {
-      $or: [{ requesterId: userId }, { itemOwnerId: userId }]
-    };
+    const query = {};
+    if (filters.direction === 'sent') {
+      query.requesterId = userId;
+    } else if (filters.direction === 'received') {
+      query.itemOwnerId = userId;
+    } else {
+      query.$or = [{ requesterId: userId }, { itemOwnerId: userId }];
+    }
 
     if (filters.status) query.status = filters.status;
     if (filters.type) query.type = filters.type;
@@ -769,8 +781,8 @@ class SwapService {
     const skip = (page - 1) * limit;
 
     const swaps = await Swap.find(query)
-      .populate('itemId', 'title images pointsValue status')
-      .populate('requestedItemId', 'title images pointsValue status')
+      .populate('itemId', 'title images pointsValue status size category condition')
+      .populate('requestedItemId', 'title images pointsValue status size category condition')
       .populate('requesterId', 'firstName lastName username')
       .populate('itemOwnerId', 'firstName lastName username')
       .sort({ createdAt: -1 })
@@ -790,8 +802,8 @@ class SwapService {
     const swap = await Swap.findById(swapId)
       .populate('itemId')
       .populate('requestedItemId')
-      .populate('requesterId', 'firstName lastName username profile')
-      .populate('itemOwnerId', 'firstName lastName username profile');
+      .populate('requesterId', 'firstName lastName username profile createdAt')
+      .populate('itemOwnerId', 'firstName lastName username profile createdAt');
 
     if (!swap) {
       throw createServiceError('Swap not found', 404);
@@ -804,7 +816,29 @@ class SwapService {
       throw createServiceError('Not authorized to view this swap', 403);
     }
 
-    return swap;
+    const relatedTransactions = await PointsTransaction.find({ relatedSwapId: swap._id })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    const transactions = relatedTransactions.map((tx) => {
+      const entry = {
+        _id: tx._id,
+        userId: tx.userId,
+        type: tx.type,
+        amount: tx.amount,
+        description: tx.description,
+        createdAt: tx.createdAt,
+        metadata: tx.metadata
+      };
+      if (String(tx.userId) === String(userId)) {
+        entry.balance = tx.balance;
+      }
+      return entry;
+    });
+
+    const swapObject = swap.toObject();
+    swapObject.transactions = transactions;
+    return swapObject;
   }
 
   /**

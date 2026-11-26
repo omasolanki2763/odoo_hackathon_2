@@ -98,6 +98,11 @@ const getSwapsValidator = [
     .isIn(Object.values(SWAP_TYPES))
     .withMessage('Invalid type'),
 
+  query('direction')
+    .optional()
+    .isIn(['sent', 'received'])
+    .withMessage('Direction must be sent or received'),
+
   query('sortBy')
     .optional()
     .isIn(['createdAt', 'updatedAt'])

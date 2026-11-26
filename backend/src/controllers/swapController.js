@@ -24,9 +24,9 @@ class SwapController {
   async getUserSwaps(req, res) {
     try {
       const userId = req.user._id;
-      const { page = 1, limit = 10, status, type } = req.query;
+      const { page = 1, limit = 10, status, type, direction } = req.query;
 
-      const filters = { status, type };
+      const filters = { status, type, direction };
       const result = await swapService.getUserSwaps(userId, filters, parseInt(page, 10), parseInt(limit, 10));
 
       return successResponse(res, result);
