@@ -90,6 +90,7 @@ describe('Auth routes & starter points', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Internal server error');
 
       const users = await User.find({ email: validPayload.email });
       expect(users.every((u) => u.points === 0)).toBe(true);
@@ -114,6 +115,7 @@ describe('Auth routes & starter points', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Internal server error');
       expect(await User.countDocuments({ email: validPayload.email })).toBe(0);
       expect(await PointsTransaction.countDocuments({})).toBe(0);
     });
@@ -221,6 +223,38 @@ describe('Auth routes & starter points', () => {
 
       expect(wrongPassSuspendedRes.status).toBe(401);
       expect(wrongPassSuspendedRes.body.message).toBe('Invalid email or password');
+    });
+
+    test('returns generic 500 rather than 401 when login hits a database error', async () => {
+      jest.spyOn(User, 'findOne').mockReturnValueOnce({
+        select: jest.fn().mockRejectedValueOnce(new Error('Mongo connection lost'))
+      });
+
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'clara@rewear.community', password: 'Password1' });
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Internal server error');
+    });
+
+    test('returns 403 when an inactive account supplies the correct password', async () => {
+      await request(app).post('/api/auth/register').send({
+        username: 'clara_mends',
+        email: 'clara@rewear.community',
+        password: 'Password1',
+        confirmPassword: 'Password1'
+      });
+      await User.updateOne({ email: 'clara@rewear.community' }, { status: 'suspended' });
+
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'clara@rewear.community', password: 'Password1' });
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Account is not active');
     });
 
     test('rate limiter middleware is attached to auth routes', async () => {

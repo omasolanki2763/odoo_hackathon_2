@@ -1,4 +1,5 @@
 const authService = require('../services/authService');
+const { MESSAGES } = require('../utils/constants');
 const { successResponse, errorResponse, createdResponse, unauthorizedResponse } = require('../utils/response');
 
 class AuthController {
@@ -17,7 +18,8 @@ class AuthController {
     } catch (error) {
       const statusCode = error.statusCode
         || (error.code === 11000 || error.name === 'ValidationError' ? 400 : 500);
-      return errorResponse(res, error.message, statusCode);
+      const message = statusCode >= 500 ? MESSAGES.SERVER_ERROR : error.message;
+      return errorResponse(res, message, statusCode);
     }
   }
 
@@ -30,7 +32,12 @@ class AuthController {
 
       return successResponse(res, result, 'Login successful');
     } catch (error) {
-      return unauthorizedResponse(res, error.message);
+      const statusCode = error.statusCode || 500;
+      if (statusCode === 401) {
+        return unauthorizedResponse(res, error.message);
+      }
+      const message = statusCode >= 500 ? MESSAGES.SERVER_ERROR : error.message;
+      return errorResponse(res, message, statusCode);
     }
   }
 

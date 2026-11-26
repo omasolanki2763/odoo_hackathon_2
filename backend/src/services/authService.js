@@ -103,11 +103,15 @@ class AuthService {
 
     const isPasswordValid = user ? await user.comparePassword(password) : false;
     if (!user || !isPasswordValid) {
-      throw new Error('Invalid email or password');
+      const authError = new Error('Invalid email or password');
+      authError.statusCode = 401;
+      throw authError;
     }
 
     if (user.status !== 'active') {
-      throw new Error('Account is not active');
+      const statusError = new Error('Account is not active');
+      statusError.statusCode = 403;
+      throw statusError;
     }
 
     const token = generateToken(user._id);
