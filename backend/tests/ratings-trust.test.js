@@ -454,4 +454,82 @@ describe('Ratings, trust summary, public profile, and mismatch reports', () => {
     expect(lateRate.status).toBe(201);
     expect(lateRate.body.data.mismatchReport).toBeNull();
   });
+
+  test('computes public profile swapsDone and redeemed accurately from Swap documents', async () => {
+    const target = await createTestUser({ username: 'stats_member', stats: { swapsCompleted: 99, itemsReceived: 88 } });
+    const peerA = await createTestUser({ username: 'stats_peer_a' });
+    const peerB = await createTestUser({ username: 'stats_peer_b' });
+
+    const targetItem = await createTestItem(target.user._id, { title: 'Target Jacket', status: 'available' });
+    const peerItem = await createTestItem(peerA.user._id, { title: 'Peer Trousers', status: 'available' });
+
+    await Swap.create([
+      // Completed swap as owner -> counts toward swapsDone (1)
+      {
+        requesterId: peerA.user._id,
+        itemOwnerId: target.user._id,
+        itemId: targetItem._id,
+        requestedItemId: peerItem._id,
+        type: 'swap',
+        status: 'completed',
+        completedAt: new Date()
+      },
+      // Completed swap as requester -> counts toward swapsDone (2)
+      {
+        requesterId: target.user._id,
+        itemOwnerId: peerA.user._id,
+        itemId: peerItem._id,
+        requestedItemId: targetItem._id,
+        type: 'swap',
+        status: 'completed',
+        completedAt: new Date()
+      },
+      // Completed redeem as requester -> counts toward redeemed (1)
+      {
+        requesterId: target.user._id,
+        itemOwnerId: peerB.user._id,
+        itemId: peerItem._id,
+        type: 'redeem',
+        status: 'completed',
+        pointsOffered: 40,
+        completedAt: new Date()
+      },
+      // Completed redeem as owner -> must NOT count toward redeemed or swapsDone
+      {
+        requesterId: peerB.user._id,
+        itemOwnerId: target.user._id,
+        itemId: targetItem._id,
+        type: 'redeem',
+        status: 'completed',
+        pointsOffered: 50,
+        completedAt: new Date()
+      },
+      // Pending swap -> must NOT count
+      {
+        requesterId: peerA.user._id,
+        itemOwnerId: target.user._id,
+        itemId: targetItem._id,
+        requestedItemId: peerItem._id,
+        type: 'swap',
+        status: 'pending'
+      },
+      // Accepted redeem -> must NOT count
+      {
+        requesterId: target.user._id,
+        itemOwnerId: peerA.user._id,
+        itemId: peerItem._id,
+        type: 'redeem',
+        status: 'accepted',
+        pointsOffered: 30
+      }
+    ]);
+
+    const res = await request(app).get('/api/users/stats_member/public');
+    expect(res.status).toBe(200);
+    expect(res.body.data.stats).toEqual({
+      listed: 1,
+      swapsDone: 2,
+      redeemed: 1
+    });
+  });
 });

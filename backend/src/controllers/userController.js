@@ -57,12 +57,22 @@ class UserController {
         return notFoundResponse(res, 'Member not found');
       }
 
-      const [trust, ratings, listings] = await Promise.all([
+      const [trust, ratings, listings, swapsDone, redeemed] = await Promise.all([
         ratingService.getUserTrustSummary(user._id),
         ratingService.getVisibleRatingsForUser(user._id),
         Item.find({ userId: user._id, status: { $in: ['available', 'approved'] } })
           .select('-adminNotes')
-          .sort({ createdAt: -1 })
+          .sort({ createdAt: -1 }),
+        Swap.countDocuments({
+          status: 'completed',
+          type: 'swap',
+          $or: [{ requesterId: user._id }, { itemOwnerId: user._id }]
+        }),
+        Swap.countDocuments({
+          status: 'completed',
+          type: 'redeem',
+          requesterId: user._id
+        })
       ]);
 
       return successResponse(res, {
@@ -75,8 +85,8 @@ class UserController {
         avatar: (user.profile && user.profile.avatar) || null,
         stats: {
           listed: listings.length,
-          swapsDone: (user.stats && user.stats.swapsCompleted) || 0,
-          redeemed: (user.stats && user.stats.itemsReceived) || 0
+          swapsDone,
+          redeemed
         },
         trust,
         ratings,
