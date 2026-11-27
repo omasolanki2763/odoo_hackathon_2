@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import RedeemModal from '../components/RedeemModal';
+import { getToken, getStoredUser, clearAuthSession } from '../utils/authStorage';
 import { refreshSessionUser } from '../utils/refreshSessionUser';
 import '../styles/ItemDetailPage.css';
 
@@ -78,13 +79,8 @@ const getOwnerInitials = (owner) => {
 };
 
 const readStoredUserId = () => {
-  try {
-    const raw = localStorage.getItem('userData');
-    const parsed = raw ? JSON.parse(raw) : null;
-    return parsed?._id || parsed?.id || null;
-  } catch {
-    return null;
-  }
+  const parsed = getStoredUser();
+  return parsed?._id || parsed?.id || null;
 };
 
 const ItemDetailPage = () => {
@@ -138,23 +134,19 @@ const ItemDetailPage = () => {
           setRelatedItems([]);
         });
 
-      const token = localStorage.getItem('token');
+      const token = getToken();
       if (token) {
         try {
-          const profileRes = await api.get('/auth/profile');
-          const profileUser = profileRes.data?.data;
-          if (profileUser) {
-            setCurrentUserId(profileUser._id || profileUser.id || null);
-            const previousRaw = localStorage.getItem('userData');
-            localStorage.setItem('userData', JSON.stringify(profileUser));
-            if (previousRaw !== JSON.stringify(profileUser)) {
-              window.dispatchEvent(new CustomEvent('auth-change', { detail: profileUser }));
-            }
+          const previousUser = getStoredUser();
+          const freshUser = await refreshSessionUser();
+          if (freshUser) {
+            setCurrentUserId(freshUser._id || freshUser.id || null);
+          } else if (previousUser) {
+            setCurrentUserId(previousUser._id || previousUser.id || null);
           }
         } catch (profileErr) {
           if (profileErr.response?.status === 401) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('userData');
+            clearAuthSession();
             setCurrentUserId(null);
           }
         }
@@ -202,7 +194,7 @@ const ItemDetailPage = () => {
 
   const openRedeemModal = async () => {
     setActionBanner({ type: '', text: '' });
-    if (!localStorage.getItem('token')) {
+    if (!getToken()) {
       navigate('/login');
       return;
     }

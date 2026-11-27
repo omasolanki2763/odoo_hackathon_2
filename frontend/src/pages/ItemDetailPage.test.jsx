@@ -219,4 +219,71 @@ describe('ItemDetailPage Redeem Dialog & Propose Swap Wiring', () => {
     expect(authEvents.some((detail) => detail?.points === 265)).toBe(true);
     expect(screen.getByText(/Redeemed for 75 points/i)).toBeInTheDocument();
   });
+
+  it('refreshes sessionStorage userData and fires auth-change after redeem when unremembered', async () => {
+    localStorage.clear();
+    sessionStorage.setItem('token', 'session-only-token');
+    sessionStorage.setItem(
+      'userData',
+      JSON.stringify({ _id: 'me-1', username: 'clara_mends', points: 340 })
+    );
+
+    let profileCalls = 0;
+    const authEvents = [];
+    window.addEventListener('auth-change', (event) => authEvents.push(event.detail));
+
+    api.get.mockImplementation((url) => {
+      if (url === '/items/item-42') {
+        return Promise.resolve({ data: { success: true, data: TARGET_ITEM } });
+      }
+      if (url === '/items') {
+        return Promise.resolve({ data: { success: true, data: [] } });
+      }
+      if (url === '/auth/profile') {
+        profileCalls += 1;
+        const points = profileCalls === 1 ? 340 : 265;
+        return Promise.resolve({ data: { success: true, data: { _id: 'me-1', username: 'clara_mends', points } } });
+      }
+      if (url === '/swaps/quote') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              mode: 'redeem',
+              cost: 75,
+              balanceBefore: 340,
+              balanceAfter: 265,
+              canAfford: true,
+            },
+          },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    api.post.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          item: { ...TARGET_ITEM, status: 'redeemed' },
+          user: { _id: 'me-1', points: 265 },
+          pointsSpent: 75,
+        },
+      },
+    });
+
+    const user = userEvent.setup();
+    renderItemDetail();
+
+    await user.click(await screen.findByRole('button', { name: 'Redeem for 75 points' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Redeem for 75 points' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+    expect(localStorage.getItem('userData')).toBeNull();
+    expect(JSON.parse(sessionStorage.getItem('userData')).points).toBe(265);
+    expect(authEvents.some((detail) => detail?.points === 265)).toBe(true);
+  });
 });

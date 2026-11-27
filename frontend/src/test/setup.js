@@ -12,6 +12,7 @@ import { cleanup } from '@testing-library/react';
 afterEach(() => {
   // Testing Library does not unmount automatically when globals are disabled.
   cleanup();
-  // Auth lives in localStorage, which jsdom keeps for the whole file.
+  // Auth lives in localStorage or sessionStorage, which jsdom keeps for the whole file.
   localStorage.clear();
+  sessionStorage.clear();
 });
