@@ -114,6 +114,50 @@ class RatingService {
   }
 
   /**
+   * Returns visible public ratings received by a user, newest first,
+   * containing only safe public fields (stars, matchStatus, comment, createdAt, rater.username).
+   */
+  async getVisibleRatingsForUser(userId, now = new Date()) {
+    if (!userId || mongoose.connection.readyState !== 1) return [];
+
+    const received = await Rating.find({ rateeId: userId })
+      .populate('raterId', 'username')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (received.length === 0) return [];
+
+    const swapIds = [...new Set(received.map((r) => String(r.swapId)))];
+    const allSwapRatings = await Rating.find({ swapId: { $in: swapIds } })
+      .select('swapId raterId')
+      .lean();
+
+    const ratersBySwap = new Map();
+    for (const r of allSwapRatings) {
+      const key = String(r.swapId);
+      if (!ratersBySwap.has(key)) ratersBySwap.set(key, new Set());
+      ratersBySwap.get(key).add(String(r.raterId));
+    }
+
+    const nowMs = now.getTime();
+    return received
+      .filter((rating) => {
+        const distinctCount = ratersBySwap.get(String(rating.swapId))?.size || 1;
+        return isRatingRevealed(rating, distinctCount, nowMs);
+      })
+      .map((rating) => ({
+        _id: rating._id,
+        stars: rating.stars,
+        matchStatus: rating.matchStatus,
+        comment: rating.comment || '',
+        createdAt: rating.createdAt,
+        rater: rating.raterId && rating.raterId.username
+          ? { username: rating.raterId.username }
+          : null
+      }));
+  }
+
+  /**
    * Submits a post-completion rating for the other swap participant.
    * Opens a MismatchReport if the receiver answers "no" within 7 days of completion.
    */

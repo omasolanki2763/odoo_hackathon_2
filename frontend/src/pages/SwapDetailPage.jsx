@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import api from '../api';
 import { getStoredUser } from '../utils/authStorage';
 import { refreshSessionUser } from '../utils/refreshSessionUser';
+import RateSwapCard from '../components/RateSwapCard';
 import '../styles/SwapDetailPage.css';
 
 const STATUS_META = {
@@ -127,6 +128,8 @@ const SwapDetailPage = () => {
   const { id } = useParams();
 
   const [swap, setSwap] = useState(null);
+  const [ratingsState, setRatingsState] = useState(null);
+  const [justSubmittedRating, setJustSubmittedRating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState({ message: '', status: null });
 
@@ -144,7 +147,18 @@ const SwapDetailPage = () => {
     setLoadError({ message: '', status: null });
     try {
       const res = await api.get(`/swaps/${id}`);
-      setSwap(res.data?.data || null);
+      const loadedSwap = res.data?.data || null;
+      setSwap(loadedSwap);
+      if (loadedSwap?.status === 'completed') {
+        try {
+          const ratingsRes = await api.get(`/swaps/${id}/ratings`);
+          setRatingsState(ratingsRes.data?.data || null);
+        } catch {
+          setRatingsState(null);
+        }
+      } else {
+        setRatingsState(null);
+      }
     } catch (err) {
       setLoadError({
         message: err.response?.data?.message || 'Unable to load this swap right now.',
@@ -298,6 +312,20 @@ const SwapDetailPage = () => {
   const pointsOffered = swap.pointsOffered || 0;
   const transactions = Array.isArray(swap.transactions) ? swap.transactions : [];
   const timeline = Array.isArray(swap.timeline) ? swap.timeline : [];
+  const completedAtMs = swap.completedAt
+    ? new Date(swap.completedAt).getTime()
+    : swap.updatedAt
+    ? new Date(swap.updatedAt).getTime()
+    : NaN;
+  const isWithinRatingWindow =
+    !Number.isFinite(completedAtMs) || Date.now() - completedAtMs <= 7 * 24 * 60 * 60 * 1000;
+  const showRateCard =
+    swap.status === 'completed' &&
+    (isOwner || isRequester) &&
+    (justSubmittedRating || (!ratingsState?.myRating && isWithinRatingWindow));
+  const ratedItemTitle = isOwner
+    ? swap.requestedItemId?.title || swap.itemId?.title
+    : swap.itemId?.title;
 
   const getPointsHeadline = () => {
     if (pointsOffered === 0) {
@@ -553,6 +581,19 @@ const SwapDetailPage = () => {
                       sign: '',
                       tone: 'muted',
                     };
+                    const txActorId =
+                      tx.userId?._id ||
+                      tx.userId ||
+                      (tx.type === 'received' ? ownerId : requesterId);
+                    const isOwnTx = Boolean(
+                      currentUserId && txActorId && String(txActorId) === String(currentUserId)
+                    );
+                    const txActorHandle =
+                      String(txActorId) === String(requesterId)
+                        ? requester?.username || 'requester'
+                        : owner?.username || 'owner';
+                    const amountPrefix = isOwnTx ? txInfo.sign : '';
+
                     return (
                       <li key={tx._id} className="swdetail-tx-row">
                         <div className="swdetail-tx-left">
@@ -561,15 +602,22 @@ const SwapDetailPage = () => {
                           </span>
                           <div>
                             <p className="swdetail-tx-desc">{tx.description}</p>
-                            <p className="swdetail-tx-date">{formatDateTime(tx.createdAt)}</p>
+                            <p className="swdetail-tx-date">
+                              {!isOwnTx && (
+                                <span className="swdetail-tx-actor">
+                                  @{txActorHandle}&apos;s points &bull;{' '}
+                                </span>
+                              )}
+                              {formatDateTime(tx.createdAt)}
+                            </p>
                           </div>
                         </div>
                         <div className="swdetail-tx-right">
                           <span className="swdetail-tx-amt font-number">
-                            {txInfo.sign}
+                            {amountPrefix}
                             {tx.amount} PTS
                           </span>
-                          {typeof tx.balance === 'number' && (
+                          {isOwnTx && typeof tx.balance === 'number' && (
                             <span className="swdetail-tx-bal">Balance: {tx.balance}</span>
                           )}
                         </div>
@@ -617,6 +665,16 @@ const SwapDetailPage = () => {
               </dl>
             </section>
 
+            {/* Post-completion rating & mismatch card */}
+            {showRateCard && (
+              <RateSwapCard
+                swapId={id}
+                itemTitle={ratedItemTitle}
+                partnerUsername={partnerUsername}
+                onSubmitted={() => setJustSubmittedRating(true)}
+              />
+            )}
+
             {/* Timeline */}
             <section className="swdetail-card" aria-labelledby="timeline-heading">
               <p className="swdetail-eyebrow" id="timeline-heading">
@@ -660,10 +718,17 @@ const SwapDetailPage = () => {
                   {getInitials(partner)}
                 </div>
                 <div>
-                  <p className="swdetail-partner-handle">@{partnerUsername}</p>
+                  <p className="swdetail-partner-handle">
+                    <Link to={`/members/${partnerUsername}`} className="swdetail-partner-link">
+                      @{partnerUsername}
+                    </Link>
+                  </p>
                   <p className="swdetail-partner-meta">
                     {partnerSince ? `Member since ${partnerSince}` : 'Community member'}
                   </p>
+                  <Link to={`/members/${partnerUsername}`} className="swdetail-inline-link">
+                    View rack &rsaquo;
+                  </Link>
                 </div>
               </div>
             </section>

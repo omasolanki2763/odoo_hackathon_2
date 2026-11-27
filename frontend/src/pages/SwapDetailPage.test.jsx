@@ -9,6 +9,7 @@ vi.mock('../api', () => ({
   default: {
     get: vi.fn(),
     put: vi.fn(),
+    post: vi.fn(),
   },
 }));
 
@@ -263,5 +264,118 @@ describe('SwapDetailPage role and state actions', () => {
     expect(screen.getByText(/This swap could not be loaded/i)).toBeInTheDocument();
     expect(screen.getByText(/SWAP_FORBIDDEN/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it('labels requester hold row clearly without a negative sign on the item owner view', async () => {
+    localStorage.setItem('userData', JSON.stringify({ _id: 'user-owner', username: 'mia_rewears', points: 100 }));
+    api.get.mockResolvedValue({ data: { success: true, data: BASE_SWAP } });
+
+    renderSwapDetail();
+
+    expect(await screen.findByText(/clara_mends's points/i)).toBeInTheDocument();
+    const txAmounts = screen.getAllByText('15 PTS');
+    expect(txAmounts.length).toBeGreaterThan(0);
+    expect(screen.queryByText('-15 PTS')).not.toBeInTheDocument();
+  });
+
+  it('supports keyboard arrow navigation on star radiogroup, requires mismatch reason for Not as described, and hides card when rated or expired', async () => {
+    localStorage.setItem('userData', JSON.stringify({ _id: 'user-req', username: 'clara_mends', points: 235 }));
+    const recentCompletedSwap = {
+      ...BASE_SWAP,
+      status: 'completed',
+      completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    };
+
+    api.get.mockImplementation((url) => {
+      if (url === '/swaps/swap-101') {
+        return Promise.resolve({ data: { success: true, data: recentCompletedSwap } });
+      }
+      if (url === '/swaps/swap-101/ratings') {
+        return Promise.resolve({
+          data: { success: true, data: { ratings: [], myRating: null, bothRated: false } },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+    api.post.mockResolvedValue({
+      data: { success: true, data: { rating: { _id: 'rat-1', stars: 4 } } },
+    });
+
+    const user = userEvent.setup();
+    renderSwapDetail();
+
+    expect(await screen.findByText(/Rate this swap/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /@mia_rewears/i })).toHaveAttribute(
+      'href',
+      '/members/mia_rewears'
+    );
+
+    // Arrow key navigation through accessible star radiogroup
+    const firstStar = screen.getByRole('radio', { name: '1 of 5' });
+    firstStar.focus();
+    await user.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}');
+
+    const fourthStar = screen.getByRole('radio', { name: '4 of 5' });
+    expect(fourthStar).toHaveFocus();
+    expect(fourthStar).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText('4 of 5')).toBeInTheDocument();
+
+    // Selecting Not as described shows consequence + requires reason
+    await user.click(screen.getByLabelText(/Not as described/i));
+    expect(
+      screen.getByText(/an admin reviews it, and if upheld the points paid for this swap come back/i)
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Submit rating/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /did not match its listing/i
+    );
+    expect(api.post).not.toHaveBeenCalled();
+
+    await user.type(
+      screen.getByLabelText(/what did not match/i),
+      'Hem was unstitched on arrival'
+    );
+    await user.type(screen.getByLabelText(/anything to add/i), 'Speedy shipping though.');
+    await user.click(screen.getByRole('button', { name: /Submit rating/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/swaps/swap-101/rate', {
+        stars: 4,
+        matchStatus: 'no',
+        comment: 'Speedy shipping though.',
+        reason: 'Hem was unstitched on arrival',
+      });
+    });
+
+    expect(
+      await screen.findByText(/Thanks, your rating is visible once both of you rate or after 7 days\./i)
+    ).toBeInTheDocument();
+  });
+
+  it('hides Rate this swap card once already rated or after the 7-day window', async () => {
+    localStorage.setItem('userData', JSON.stringify({ _id: 'user-req', username: 'clara_mends', points: 235 }));
+    const oldCompletedSwap = {
+      ...BASE_SWAP,
+      status: 'completed',
+      completedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    api.get.mockImplementation((url) => {
+      if (url === '/swaps/swap-101') {
+        return Promise.resolve({ data: { success: true, data: oldCompletedSwap } });
+      }
+      if (url === '/swaps/swap-101/ratings') {
+        return Promise.resolve({
+          data: { success: true, data: { ratings: [], myRating: null, bothRated: false } },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    renderSwapDetail();
+
+    expect(await screen.findByText(/This swap is complete/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Rate this swap/i)).not.toBeInTheDocument();
   });
 });

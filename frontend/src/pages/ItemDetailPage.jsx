@@ -562,7 +562,7 @@ const ItemDetailPage = () => {
               )}
             </section>
 
-            {/* Owner Card (Username + Member Since only; trust ratings arrive in Task 15) */}
+            {/* Owner Card */}
             {owner && (
               <section className="detail-card" aria-label="Listing owner">
                 <span className="detail-card-eyebrow">LISTED BY</span>
@@ -572,7 +572,11 @@ const ItemDetailPage = () => {
                       {getOwnerInitials(owner)}
                     </div>
                     <div>
-                      <p className="detail-owner-name">@{owner.username}</p>
+                      <p className="detail-owner-name">
+                        <Link to={`/members/${owner.username}`} className="detail-owner-handle-link">
+                          @{owner.username}
+                        </Link>
+                      </p>
                       <p className="detail-owner-sub">
                         {[
                           locationText || owner.profile?.location || null,
@@ -581,11 +585,25 @@ const ItemDetailPage = () => {
                           .filter(Boolean)
                           .join(' • ') || 'Community Member'}
                       </p>
+                      <p className="detail-owner-trust">
+                        {owner.trustSummary?.ratingCount > 0 ? (
+                          <>
+                            <span className="detail-owner-stars" aria-hidden="true">★</span>{' '}
+                            <span className="font-number">{Number(owner.trustSummary.averageStars).toFixed(1)}</span>{' '}
+                            <span>
+                              ({owner.trustSummary.ratingCount}{' '}
+                              {owner.trustSummary.ratingCount === 1 ? 'rating' : 'ratings'})
+                            </span>
+                          </>
+                        ) : (
+                          'No ratings yet'
+                        )}
+                      </p>
                     </div>
                   </div>
 
-                  <Link to="/items" className="detail-owner-link">
-                    Browse Archive &rsaquo;
+                  <Link to={`/members/${owner.username}`} className="detail-owner-link">
+                    View rack &rsaquo;
                   </Link>
                 </div>
               </section>
