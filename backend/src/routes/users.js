@@ -5,10 +5,14 @@ const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const validate = require('../middleware/validation');
 const selfOrAdmin = require('../middleware/selfOrAdmin');
+const { getMyPointsQueryValidator } = require('../validators/pointsValidator');
 const { updateUserValidator, getUserValidator, getUsersValidator } = require('../validators/userValidator');
 
 // Get all users (admin only)
 router.get('/', admin, getUsersValidator, validate, userController.getUsers);
+
+// Signed-in member's own points ledger (must precede the /:id routes)
+router.get('/me/points', auth, getMyPointsQueryValidator, validate, userController.getMyPoints);
 
 // Public member profile by username (never exposes private fields; must precede /:id)
 router.get('/:username/public', userController.getPublicProfile);

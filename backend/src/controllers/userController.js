@@ -4,6 +4,7 @@ const Swap = require('../models/Swap');
 const PointsTransaction = require('../models/PointsTransaction');
 const Notification = require('../models/Notification');
 const ratingService = require('../services/ratingService');
+const pointsService = require('../services/pointsService');
 const { successResponse, errorResponse, notFoundResponse, forbiddenResponse, paginatedResponse } = require('../utils/response');
 const { generatePagination } = require('../utils/helpers');
 const { pickEditableProfileFields, toProfileUpdateError } = require('../utils/editableProfile');
@@ -222,6 +223,31 @@ class UserController {
       return paginatedResponse(res, swaps, pagination);
     } catch (error) {
       return errorResponse(res, error.message);
+    }
+  }
+
+  /**
+   * GET /api/users/me/points - the caller's own points ledger, newest first,
+   * with lifetime totals. The user id always comes from the token, never from
+   * the request, so a member can only ever read their own rows.
+   */
+  async getMyPoints(req, res) {
+    try {
+      const { page, limit, type } = req.query;
+      const types = typeof type === 'string'
+        ? type.split(',').map((token) => token.trim()).filter(Boolean)
+        : [];
+
+      const { entries, totals, pagination } = await pointsService.getMyHistory(req.user._id, {
+        page,
+        limit,
+        types
+      });
+
+      return res.status(200).json({ success: true, data: { entries, totals }, pagination });
+    } catch (error) {
+      // Unexpected failures get a generic message so internals never reach the browser.
+      return errorResponse(res, MESSAGES.SERVER_ERROR, 500);
     }
   }
 
