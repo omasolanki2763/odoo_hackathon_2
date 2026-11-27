@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../api';
+import { getStoredUser } from '../utils/authStorage';
 import { refreshSessionUser } from '../utils/refreshSessionUser';
 import '../styles/SwapDetailPage.css';
 
@@ -27,15 +28,6 @@ const TX_LABELS = {
   refund: { label: 'Refunded', sign: '+', tone: 'credit' },
   spent: { label: 'Spent', sign: '-', tone: 'debit' },
   earned: { label: 'Earned', sign: '+', tone: 'credit' },
-};
-
-const readStoredUser = () => {
-  try {
-    const raw = localStorage.getItem('userData');
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
 };
 
 const extractImage = (item) => {
@@ -144,7 +136,7 @@ const SwapDetailPage = () => {
   const [declineReason, setDeclineReason] = useState('');
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const currentUser = useMemo(() => readStoredUser(), []);
+  const currentUser = useMemo(() => getStoredUser(), []);
   const currentUserId = currentUser?._id || currentUser?.id || null;
 
   const fetchSwap = useCallback(async () => {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
+import { getStoredUser } from '../utils/authStorage';
 import '../styles/SwapsPage.css';
 
 const STATUS_META = {
@@ -39,13 +40,8 @@ const formatExpiryCountdown = (expiresAt) => {
 };
 
 const readStoredUserId = () => {
-  try {
-    const raw = localStorage.getItem('userData');
-    const parsed = raw ? JSON.parse(raw) : null;
-    return parsed?._id || parsed?.id || null;
-  } catch {
-    return null;
-  }
+  const parsed = getStoredUser();
+  return parsed?._id || parsed?.id || null;
 };
 
 const SwapsPage = () => {
