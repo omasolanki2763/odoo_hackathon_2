@@ -7,7 +7,8 @@ const {
   createSwapValidator,
   quoteValidator,
   getSwapsValidator,
-  getSwapValidator
+  getSwapValidator,
+  rateSwapValidator
 } = require('../validators/swapValidator');
 const { body } = require('express-validator');
 
@@ -64,5 +65,9 @@ router.put('/:id/complete', auth, getSwapValidator, validate, swapController.com
 
 // Cancel swap (authenticated)
 router.put('/:id/cancel', auth, getSwapValidator, validate, swapController.cancelSwap);
+
+// Post-completion swap ratings & visible ratings lookup (authenticated)
+router.post('/:id/rate', auth, rateSwapValidator, validate, swapController.rateSwap);
+router.get('/:id/ratings', auth, getSwapValidator, validate, swapController.getSwapRatings);
 
 module.exports = router;

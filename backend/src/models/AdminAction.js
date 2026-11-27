@@ -9,7 +9,7 @@ const adminActionSchema = new mongoose.Schema({
   targetType: {
     type: String,
     required: true,
-    enum: ['item', 'user', 'swap']
+    enum: ['item', 'user', 'swap', 'mismatch_report']
   },
   targetId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -18,7 +18,7 @@ const adminActionSchema = new mongoose.Schema({
   action: {
     type: String,
     required: true,
-    enum: ['approve', 'reject', 'suspend', 'ban', 'delete', 'warn', 'activate']
+    enum: ['approve', 'reject', 'suspend', 'ban', 'delete', 'warn', 'activate', 'bonus', 'penalty', 'refund', 'dismiss']
   },
   reason: {
     type: String,

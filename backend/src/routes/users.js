@@ -9,6 +9,9 @@ const { updateUserValidator, getUserValidator, getUsersValidator } = require('..
 // Get all users (admin only)
 router.get('/', admin, getUsersValidator, validate, userController.getUsers);
 
+// Public member profile by username (never exposes private fields; must precede /:id)
+router.get('/:username/public', userController.getPublicProfile);
+
 // Get user by ID
 router.get('/:id', auth, getUserValidator, validate, userController.getUserById);
 
