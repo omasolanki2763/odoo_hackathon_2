@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const admin = require('../middleware/admin');
+const validate = require('../middleware/validation');
+const { param, body } = require('express-validator');
 
 // Get admin dashboard stats
 router.get('/dashboard', admin, adminController.getDashboard);
@@ -47,5 +49,19 @@ router.post('/users/:id/points/penalty', admin, adminController.applyPenalty);
 
 // Get system statistics
 router.get('/stats', admin, adminController.getSystemStats);
+
+// Mismatch report moderation
+router.get('/mismatch-reports', admin, adminController.getMismatchReports);
+router.put(
+  '/mismatch-reports/:id/resolve',
+  admin,
+  [
+    param('id').isMongoId().withMessage('Invalid mismatch report ID'),
+    body('action').isIn(['refund', 'dismiss']).withMessage('Action must be refund or dismiss'),
+    body('adminNotes').optional().isString().trim().isLength({ max: 500 }).withMessage('Notes must be 500 characters or fewer')
+  ],
+  validate,
+  adminController.resolveMismatchReport
+);
 
 module.exports = router; 

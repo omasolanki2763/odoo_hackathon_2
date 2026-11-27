@@ -3,6 +3,7 @@ const Item = require('../models/Item');
 const Swap = require('../models/Swap');
 const PointsTransaction = require('../models/PointsTransaction');
 const Notification = require('../models/Notification');
+const ratingService = require('../services/ratingService');
 const { successResponse, errorResponse, notFoundResponse, forbiddenResponse, paginatedResponse } = require('../utils/response');
 const { generatePagination } = require('../utils/helpers');
 
@@ -36,6 +37,44 @@ class UserController {
       const pagination = generatePagination(page, limit, total);
 
       return paginatedResponse(res, users, pagination);
+    } catch (error) {
+      return errorResponse(res, error.message);
+    }
+  }
+
+  // Get public profile by username (safe allowlisted fields + trust summary + active listings)
+  async getPublicProfile(req, res) {
+    try {
+      const { username } = req.params;
+      if (!username || typeof username !== 'string' || !username.trim()) {
+        return notFoundResponse(res, 'Member not found');
+      }
+
+      const user = await User.findOne({ username: username.trim() })
+        .select('username firstName lastName profile createdAt status');
+
+      if (!user || user.status === 'banned') {
+        return notFoundResponse(res, 'Member not found');
+      }
+
+      const [trust, listings] = await Promise.all([
+        ratingService.getUserTrustSummary(user._id),
+        Item.find({ userId: user._id, status: { $in: ['available', 'approved'] } })
+          .select('-adminNotes')
+          .sort({ createdAt: -1 })
+      ]);
+
+      return successResponse(res, {
+        username: user.username,
+        firstName: user.firstName || null,
+        lastName: user.lastName || null,
+        memberSince: (user.profile && user.profile.joinDate) || user.createdAt,
+        city: (user.profile && user.profile.location) || null,
+        bio: (user.profile && user.profile.bio) || null,
+        avatar: (user.profile && user.profile.avatar) || null,
+        trust,
+        listings
+      });
     } catch (error) {
       return errorResponse(res, error.message);
     }

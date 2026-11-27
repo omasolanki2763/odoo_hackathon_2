@@ -120,10 +120,58 @@ const getSwapValidator = [
     .withMessage('Invalid swap ID')
 ];
 
+const rateSwapValidator = [
+  param('id')
+    .isMongoId()
+    .withMessage('Invalid swap ID'),
+
+  body('stars')
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Stars must be an integer between 1 and 5'),
+
+  body('matchStatus')
+    .isString()
+    .trim()
+    .custom((value) => {
+      const normalized = value.toLowerCase().replace(/\s+/g, '_');
+      if (!['yes', 'small_differences', 'no'].includes(normalized)) {
+        throw new Error('Match status must be yes, small differences, or no');
+      }
+      return true;
+    }),
+
+  body('comment')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Comment must be 500 characters or fewer'),
+
+  body('reason')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Mismatch reason must be 1000 characters or fewer'),
+
+  body('mismatchReason')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Mismatch reason must be 1000 characters or fewer'),
+
+  body('rateeId')
+    .optional()
+    .isMongoId()
+    .withMessage('Invalid ratee ID')
+];
+
 module.exports = {
   createSwapValidator,
   quoteValidator,
   updateSwapValidator,
   getSwapsValidator,
-  getSwapValidator
+  getSwapValidator,
+  rateSwapValidator
 };

@@ -1,9 +1,41 @@
 const Item = require('../models/Item');
 const User = require('../models/User');
 const swapService = require('./swapService');
+const ratingService = require('./ratingService');
 const { calculateItemPoints, generatePagination, escapeRegex } = require('../utils/helpers');
 const { PAGINATION } = require('../utils/constants');
 const Notification = require('../models/Notification');
+
+const attachOwnerTrustSummaries = async (records) => {
+  const isSingle = !Array.isArray(records);
+  const list = isSingle ? (records ? [records] : []) : records;
+  if (list.length === 0) return records;
+
+  const ownerIds = list
+    .map((item) => (item.userId && item.userId._id ? item.userId._id : item.userId))
+    .filter(Boolean);
+  const summaryMap = await ratingService.getTrustSummariesForUsers(ownerIds);
+
+  const enriched = list.map((item) => {
+    const plain = typeof item.toObject === 'function' ? item.toObject() : { ...item };
+    if (plain.userId && typeof plain.userId === 'object' && plain.userId._id) {
+      const summary = summaryMap.get(String(plain.userId._id)) || {
+        averageStars: 0,
+        ratingCount: 0
+      };
+      plain.userId = {
+        ...plain.userId,
+        trustSummary: {
+          averageStars: summary.averageStars,
+          ratingCount: summary.ratingCount
+        }
+      };
+    }
+    return plain;
+  });
+
+  return isSingle ? enriched[0] : enriched;
+};
 
 const SORT_PRESETS = {
   newest: { createdAt: -1 },
@@ -140,7 +172,8 @@ class ItemService {
       const total = await Item.countDocuments(query);
       const pagination = generatePagination(safePage, safeLimit, total);
 
-      return { items, pagination };
+      const enrichedItems = await attachOwnerTrustSummaries(items);
+      return { items: enrichedItems, pagination };
     } catch (error) {
       throw error;
     }
@@ -158,7 +191,7 @@ class ItemService {
         throw new Error('Item not found');
       }
 
-      return item;
+      return await attachOwnerTrustSummaries(item);
     } catch (error) {
       throw error;
     }
@@ -297,7 +330,7 @@ class ItemService {
         .sort({ createdAt: -1 })
         .limit(limit);
 
-      return items;
+      return await attachOwnerTrustSummaries(items);
     } catch (error) {
       throw error;
     }
@@ -342,7 +375,8 @@ class ItemService {
       const total = await Item.countDocuments(query);
       const pagination = generatePagination(safePage, safeLimit, total);
 
-      return { items, pagination };
+      const enrichedItems = await attachOwnerTrustSummaries(items);
+      return { items: enrichedItems, pagination };
     } catch (error) {
       throw error;
     }

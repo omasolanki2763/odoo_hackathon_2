@@ -4,6 +4,7 @@ const Swap = require('../models/Swap');
 const AdminAction = require('../models/AdminAction');
 const pointsService = require('../services/pointsService');
 const itemService = require('../services/itemService');
+const ratingService = require('../services/ratingService');
 const { successResponse, errorResponse, notFoundResponse } = require('../utils/response');
 
 class AdminController {
@@ -448,6 +449,30 @@ class AdminController {
       return successResponse(res, stats);
     } catch (error) {
       return errorResponse(res, error.message);
+    }
+  }
+
+  // List mismatch reports for admin triage
+  async getMismatchReports(req, res) {
+    try {
+      const { status, page = 1, limit = 20 } = req.query;
+      const result = await ratingService.listMismatchReports({ status, page, limit });
+      return successResponse(res, result);
+    } catch (error) {
+      return errorResponse(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  // Resolve an open mismatch report as refund or dismiss
+  async resolveMismatchReport(req, res) {
+    try {
+      const { id } = req.params;
+      const adminId = req.user._id;
+      const { action, adminNotes } = req.body;
+      const resolved = await ratingService.resolveMismatchReport(id, adminId, { action, adminNotes });
+      return successResponse(res, resolved, `Mismatch report ${action}ed successfully`);
+    } catch (error) {
+      return errorResponse(res, error.message, error.statusCode || 500);
     }
   }
 }

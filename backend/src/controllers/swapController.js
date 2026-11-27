@@ -1,4 +1,5 @@
 const swapService = require('../services/swapService');
+const ratingService = require('../services/ratingService');
 const { successResponse, errorResponse, createdResponse } = require('../utils/response');
 
 class SwapController {
@@ -143,6 +144,34 @@ class SwapController {
       const swap = await swapService.cancelSwap(id, userId);
 
       return successResponse(res, swap, 'Swap cancelled successfully');
+    } catch (error) {
+      return errorResponse(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  // Rate completed swap (and open mismatch report on "no" within 7 days)
+  async rateSwap(req, res) {
+    try {
+      const { id } = req.params;
+      const raterId = req.user._id;
+
+      const result = await ratingService.submitRating(id, raterId, req.body);
+
+      return createdResponse(res, result, 'Rating submitted successfully');
+    } catch (error) {
+      return errorResponse(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  // Get visible ratings and caller rating status for a swap
+  async getSwapRatings(req, res) {
+    try {
+      const { id } = req.params;
+      const callerId = req.user._id;
+
+      const result = await ratingService.getSwapRatings(id, callerId, Boolean(req.user.isAdmin));
+
+      return successResponse(res, result);
     } catch (error) {
       return errorResponse(res, error.message, error.statusCode || 500);
     }
