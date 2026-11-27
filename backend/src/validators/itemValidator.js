@@ -449,6 +449,7 @@ const getItemValidator = [
 ];
 
 module.exports = {
+  createQueryWhitelistValidator,
   createItemValidator,
   updateItemValidator,
   getItemsValidator,

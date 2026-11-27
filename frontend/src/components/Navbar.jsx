@@ -195,6 +195,13 @@ const Navbar = () => {
                         >
                           Swaps
                         </Link>
+                        <Link
+                          to="/points"
+                          className="shell-dropdown-item"
+                          role="menuitem"
+                        >
+                          Points history
+                        </Link>
                         {user?.isAdmin && (
                           <Link
                             to="/admin"
