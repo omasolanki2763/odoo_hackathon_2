@@ -1,7 +1,13 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
+const Item = require('../models/Item');
+const Swap = require('../models/Swap');
+const Rating = require('../models/Rating');
 const { generateToken } = require('../config/jwt');
 const Notification = require('../models/Notification');
 const PointsTransaction = require('../models/PointsTransaction');
+const swapService = require('./swapService');
+const ratingService = require('./ratingService');
 const { POINTS_TRANSACTION_TYPES, STARTER_POINTS } = require('../utils/constants');
 
 class AuthService {
@@ -178,7 +184,7 @@ class AuthService {
     }
   }
 
-  // Get user dashboard data
+  // Get user dashboard data (strictly scoped to caller)
   async getDashboard(userId) {
     try {
       const user = await User.findById(userId);
@@ -186,57 +192,153 @@ class AuthService {
         throw new Error('User not found');
       }
 
-      // Get user's listed items
-      const Item = require('../models/Item');
-      const listedItems = await Item.find({ userId }).sort({ createdAt: -1 }).limit(5);
+      if (mongoose.connection.readyState === 1) {
+        await swapService.expirePendingSwaps();
+      }
 
-      // Get items the user has purchased/redeemed (items with status 'redeemed' where user is the redeemer)
-      const Swap = require('../models/Swap');
-      const purchasedSwaps = await Swap.find({
-        requesterId: userId,
-        type: 'redeem',
-        status: 'accepted'
-      })
-      .populate('itemId', 'title images status')
-      .sort({ createdAt: -1 })
-      .limit(5);
+      const swapPopulates = [
+        { path: 'itemId', select: 'title images pointsValue status size category condition' },
+        { path: 'requestedItemId', select: 'title images pointsValue status size category condition' },
+        { path: 'requesterId', select: 'firstName lastName username' },
+        { path: 'itemOwnerId', select: 'firstName lastName username' }
+      ];
 
-      // Get recent swaps
-      const swaps = await Swap.find({
-        $or: [{ requesterId: userId }, { itemOwnerId: userId }]
-      })
-      .populate('itemId', 'title images')
-      .populate('requesterId', 'firstName lastName username')
-      .populate('itemOwnerId', 'firstName lastName username')
-      .sort({ createdAt: -1 })
-      .limit(5);
+      const [
+        listedItems,
+        totalItemsCount,
+        purchasedSwaps,
+        recentSwaps,
+        swapsNeedingAction,
+        openRequests,
+        acceptedSwaps,
+        completedRaw,
+        swapsCompleted,
+        itemsReceived,
+        totalSwapsCount,
+        notifications,
+        transactions,
+        allTransactions,
+        trust
+      ] = await Promise.all([
+        Item.find({ userId }).sort({ createdAt: -1 }).limit(30),
+        Item.countDocuments({ userId }),
+        Swap.find({
+          requesterId: userId,
+          type: 'redeem',
+          status: 'accepted'
+        })
+          .populate('itemId', 'title images status')
+          .sort({ createdAt: -1 })
+          .limit(5),
+        Swap.find({
+          $or: [{ requesterId: userId }, { itemOwnerId: userId }]
+        })
+          .populate(swapPopulates)
+          .sort({ createdAt: -1 })
+          .limit(5),
+        Swap.find({
+          itemOwnerId: userId,
+          status: 'pending'
+        })
+          .populate(swapPopulates)
+          .sort({ expiresAt: 1, createdAt: -1 })
+          .limit(20),
+        Swap.find({
+          requesterId: userId,
+          status: 'pending'
+        })
+          .populate(swapPopulates)
+          .sort({ expiresAt: 1, createdAt: -1 })
+          .limit(20),
+        Swap.find({
+          status: 'accepted',
+          $or: [{ requesterId: userId }, { itemOwnerId: userId }]
+        })
+          .populate(swapPopulates)
+          .sort({ updatedAt: -1 })
+          .limit(10),
+        Swap.find({
+          status: 'completed',
+          $or: [{ requesterId: userId }, { itemOwnerId: userId }]
+        })
+          .populate(swapPopulates)
+          .sort({ completedAt: -1, updatedAt: -1 })
+          .limit(10),
+        Swap.countDocuments({
+          status: 'completed',
+          $or: [{ requesterId: userId }, { itemOwnerId: userId }]
+        }),
+        Swap.countDocuments({
+          status: 'completed',
+          $or: [
+            { requesterId: userId },
+            { itemOwnerId: userId, type: 'swap' }
+          ]
+        }),
+        Swap.countDocuments({
+          $or: [{ requesterId: userId }, { itemOwnerId: userId }]
+        }),
+        Notification.find({ userId }).sort({ createdAt: -1 }).limit(5),
+        PointsTransaction.find({ userId }).sort({ createdAt: -1 }).limit(5),
+        PointsTransaction.find({ userId }).select('type amount').lean(),
+        ratingService.getUserTrustSummary(userId)
+      ]);
 
-      // Get recent notifications
-      const notifications = await Notification.find({ userId })
-        .sort({ createdAt: -1 })
-        .limit(5);
+      const completedIds = completedRaw.map((s) => s._id);
+      const callerRatings = completedIds.length > 0
+        ? await Rating.find({ swapId: { $in: completedIds }, raterId: userId }).select('swapId').lean()
+        : [];
+      const ratedSwapIds = new Set(callerRatings.map((r) => String(r.swapId)));
 
-      // Get recent points transactions
-      const transactions = await PointsTransaction.find({ userId })
-        .sort({ createdAt: -1 })
-        .limit(5);
+      const completedSwaps = completedRaw.map((swapDoc) => ({
+        ...swapDoc.toObject(),
+        hasRated: ratedSwapIds.has(String(swapDoc._id))
+      }));
+
+      let earnedPoints = 0;
+      let rawDebits = 0;
+      let refundedPoints = 0;
+      for (const tx of allTransactions) {
+        const amt = Math.max(0, Number(tx.amount) || 0);
+        if (['earned', 'received', 'bonus'].includes(tx.type)) {
+          earnedPoints += amt;
+        } else if (tx.type === 'refund') {
+          refundedPoints += amt;
+        } else if (['spent', 'sent', 'penalty', 'hold'].includes(tx.type)) {
+          rawDebits += amt;
+        }
+      }
+      const spentPoints = Math.max(0, rawDebits - refundedPoints);
 
       return {
         user: user.toJSON(),
         stats: {
-          itemsCount: listedItems.length,
+          itemsCount: totalItemsCount,
           purchasedItemsCount: purchasedSwaps.length,
-          activeSwaps: swaps.filter(s => s.status === 'pending' || s.status === 'accepted').length,
-          unreadNotifications: notifications.filter(n => !n.isRead).length,
-          totalPoints: user.points
+          activeSwaps: swapsNeedingAction.length + openRequests.length + acceptedSwaps.length,
+          swapsCompleted,
+          itemsReceived,
+          totalSwapsCount,
+          unreadNotifications: notifications.filter((n) => !n.isRead).length,
+          totalPoints: user.points,
+          earnedPoints,
+          spentPoints
         },
-        recentItems: listedItems,
-        purchasedItems: purchasedSwaps.map(swap => ({
-          ...swap.itemId.toJSON(),
-          purchasedAt: swap.createdAt,
-          pointsSpent: swap.pointsOffered
-        })),
-        recentSwaps: swaps,
+        trust,
+        myItems: listedItems,
+        recentItems: listedItems.slice(0, 5),
+        purchasedItems: purchasedSwaps
+          .filter((swap) => swap.itemId)
+          .map((swap) => ({
+            ...swap.itemId.toJSON(),
+            purchasedAt: swap.createdAt,
+            pointsSpent: swap.pointsOffered
+          })),
+        swapsNeedingAction,
+        openRequests,
+        acceptedSwaps,
+        completedSwaps,
+        recentSwaps,
         recentNotifications: notifications,
         recentTransactions: transactions
       };
