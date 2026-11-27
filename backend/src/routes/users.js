@@ -17,7 +17,7 @@ router.get('/:username/public', userController.getPublicProfile);
 router.get('/:id', auth, getUserValidator, validate, selfOrAdmin, userController.getUserById);
 
 // Update user
-router.put('/:id', auth, updateUserValidator, validate, selfOrAdmin, userController.updateUser);
+router.put('/:id', auth, getUserValidator, updateUserValidator, validate, selfOrAdmin, userController.updateUser);
 
 // Delete user (admin only)
 router.delete('/:id', admin, getUserValidator, validate, userController.deleteUser);

@@ -9,6 +9,7 @@ const PointsTransaction = require('../models/PointsTransaction');
 const swapService = require('./swapService');
 const ratingService = require('./ratingService');
 const { POINTS_TRANSACTION_TYPES, STARTER_POINTS } = require('../utils/constants');
+const { pickEditableProfileFields, toProfileUpdateError } = require('../utils/editableProfile');
 
 class AuthService {
   // Register new user and record starter points in a single rollback-safe flow
@@ -145,18 +146,24 @@ class AuthService {
   // Update user profile
   async updateProfile(userId, updateData) {
     try {
-      const user = await User.findById(userId);
-      if (!user) {
-        throw new Error('User not found');
-      }
+      // Only the member-editable fields are applied; anything else in the body
+      // (isAdmin, points, status, email, password...) is dropped here.
+      const allowedUpdate = pickEditableProfileFields(updateData);
 
-      // Update user
-      Object.assign(user, updateData);
-      await user.save();
+      const user = await User.findByIdAndUpdate(
+        userId,
+        { $set: allowedUpdate },
+        { new: true, runValidators: true }
+      );
+      if (!user) {
+        const notFound = new Error('User not found');
+        notFound.statusCode = 404;
+        throw notFound;
+      }
 
       return user.toJSON();
     } catch (error) {
-      throw error;
+      throw toProfileUpdateError(error);
     }
   }
 

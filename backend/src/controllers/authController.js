@@ -63,7 +63,11 @@ class AuthController {
 
       return successResponse(res, updatedProfile, 'Profile updated successfully');
     } catch (error) {
-      return errorResponse(res, error.message);
+      const statusCode = error.statusCode
+        || (error.name === 'ValidationError' ? 400 : 500);
+      // Unexpected failures get a generic message so internals never reach the browser.
+      const message = statusCode >= 500 ? MESSAGES.SERVER_ERROR : error.message;
+      return errorResponse(res, message, statusCode);
     }
   }
 

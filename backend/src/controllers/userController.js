@@ -6,37 +6,9 @@ const Notification = require('../models/Notification');
 const ratingService = require('../services/ratingService');
 const { successResponse, errorResponse, notFoundResponse, forbiddenResponse, paginatedResponse } = require('../utils/response');
 const { generatePagination } = require('../utils/helpers');
+const { pickEditableProfileFields, toProfileUpdateError } = require('../utils/editableProfile');
+const { MESSAGES } = require('../utils/constants');
 
-// Top-level and profile fields a member may change on their own account.
-const EDITABLE_USER_FIELDS = ['firstName', 'lastName', 'username'];
-const EDITABLE_PROFILE_FIELDS = ['bio', 'avatar', 'location'];
-
-/**
- * Copies only the editable profile fields from a request body into a `$set`
- * object. Profile fields use dot paths (`profile.bio`) so fields that are not
- * sent, such as `profile.joinDate`, are left untouched.
- *
- * @param {object} body the raw request body
- * @returns {object} a `$set`-ready object holding only allowed fields
- */
-const pickEditableProfileFields = (body = {}) => {
-  const update = {};
-
-  for (const field of EDITABLE_USER_FIELDS) {
-    if (body[field] !== undefined) {
-      update[field] = body[field];
-    }
-  }
-
-  const profile = body.profile && typeof body.profile === 'object' ? body.profile : {};
-  for (const field of EDITABLE_PROFILE_FIELDS) {
-    if (profile[field] !== undefined) {
-      update[`profile.${field}`] = profile[field];
-    }
-  }
-
-  return update;
-};
 
 class UserController {
   // Get all users (admin)
@@ -172,7 +144,12 @@ class UserController {
 
       return successResponse(res, user, 'User updated successfully');
     } catch (error) {
-      return errorResponse(res, error.message);
+      const reported = toProfileUpdateError(error);
+      const statusCode = reported.statusCode
+        || (reported.name === 'ValidationError' ? 400 : 500);
+      // Unexpected failures get a generic message so internals never reach the browser.
+      const message = statusCode >= 500 ? MESSAGES.SERVER_ERROR : reported.message;
+      return errorResponse(res, message, statusCode);
     }
   }
 
