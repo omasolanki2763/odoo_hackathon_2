@@ -1,0 +1,258 @@
+/* ==========================================================================
+   ReWear Points History Page
+   All values come from tokens.css (no raw hex values).
+   ========================================================================== */
+
+.points-page {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  padding: var(--space-8) 0 var(--space-16);
+}
+
+.points-page button:focus-visible,
+.points-page a:focus-visible {
+  outline: 2px solid var(--color-clay);
+  outline-offset: 2px;
+}
+
+.points-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+  margin-bottom: var(--space-4);
+}
+
+.points-breadcrumb-link {
+  color: var(--color-muted);
+  text-decoration: none;
+}
+
+.points-breadcrumb-link:hover {
+  color: var(--color-ink);
+  text-decoration: underline;
+}
+
+.points-title {
+  font-family: var(--font-display);
+  font-size: var(--font-size-4xl);
+  font-weight: 400;
+  line-height: var(--line-height-tight);
+  margin: 0;
+}
+
+.points-subtitle {
+  font-family: var(--font-body);
+  color: var(--color-muted);
+  margin: var(--space-2) 0 var(--space-8);
+}
+
+.points-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-5);
+  margin-bottom: var(--space-8);
+}
+
+.points-summary-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-6);
+}
+
+.points-eyebrow {
+  font-family: var(--font-label);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  margin: 0 0 var(--space-3);
+}
+
+.points-summary-value {
+  font-family: var(--font-number);
+  font-variant-numeric: var(--font-variant-numeric);
+  font-size: var(--font-size-4xl);
+  font-weight: 500;
+  margin: 0;
+}
+
+.points-summary-note {
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  color: var(--color-muted);
+  margin: var(--space-2) 0 0;
+}
+
+.points-credit { color: var(--color-green); }
+.points-debit { color: var(--color-red); }
+.points-hold { color: var(--color-amber); }
+
+.points-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.points-filter {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  background: var(--color-card);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+
+.points-filter.is-active {
+  background: var(--color-ink);
+  color: var(--color-card);
+  border-color: var(--color-ink);
+}
+
+.points-ledger {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-6) var(--space-8);
+}
+
+.points-status,
+.points-empty-text {
+  font-family: var(--font-body);
+  color: var(--color-muted);
+}
+
+.points-empty {
+  padding: var(--space-8) 0;
+  text-align: center;
+}
+
+.points-empty-title {
+  font-family: var(--font-display);
+  font-size: var(--font-size-xl);
+  margin: 0 0 var(--space-2);
+}
+
+.points-empty-link,
+.points-swap-link {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--color-clay);
+}
+
+.points-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  background: var(--color-red-bg);
+  color: var(--color-red);
+  border: 1px solid var(--color-red);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+  font-family: var(--font-ui);
+}
+
+.points-error p { margin: 0; }
+
+.points-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.points-table th {
+  font-family: var(--font-label);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  text-align: left;
+  padding: var(--space-3) var(--space-3) var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.points-table td {
+  font-family: var(--font-ui);
+  padding: var(--space-4) var(--space-3) var(--space-4) 0;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.points-col-number {
+  text-align: right;
+  white-space: nowrap;
+  font-family: var(--font-number);
+  font-variant-numeric: var(--font-variant-numeric);
+}
+
+.points-table th.points-col-number { text-align: right; }
+
+.points-date { white-space: nowrap; color: var(--color-muted); }
+
+.points-description { display: block; margin-top: var(--space-1); }
+
+.points-item { font-family: var(--font-display); }
+
+.points-badge {
+  display: inline-block;
+  font-family: var(--font-label);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 var(--space-2);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-badge);
+}
+
+.points-badge-credit { color: var(--color-green); background: var(--color-green-bg); }
+.points-badge-debit { color: var(--color-red); background: var(--color-red-bg); }
+.points-badge-hold { color: var(--color-amber); background: var(--color-amber-bg); }
+
+.points-more {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-6);
+}
+
+.points-more-button {
+  font-family: var(--font-ui);
+  background: var(--color-card);
+  color: var(--color-ink);
+  border: 1px solid var(--color-ink);
+  padding: var(--space-3) var(--space-8);
+  cursor: pointer;
+}
+
+.points-more-button:disabled { opacity: 0.6; cursor: wait; }
+
+/* Phone: summary stacks to two columns and each transaction becomes a card. */
+@media (max-width: 720px) {
+  .points-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .points-summary-card { padding: var(--space-4); }
+  .points-summary-value { font-size: var(--font-size-2xl); }
+  .points-ledger { padding: var(--space-4); }
+
+  .points-table thead { display: none; }
+  .points-table,
+  .points-table tbody,
+  .points-table tr,
+  .points-table td { display: block; width: 100%; }
+  .points-table tr { border-bottom: 1px solid var(--color-border); padding: var(--space-3) 0; }
+  .points-table td { border-bottom: none; padding: var(--space-1) 0; text-align: left; }
+
+  .points-table td.points-col-number::before,
+  .points-table td.points-item::before {
+    content: attr(data-label) ': ';
+    font-family: var(--font-label);
+    font-size: var(--font-size-xs);
+    color: var(--color-muted);
+    text-transform: uppercase;
+  }
+}
