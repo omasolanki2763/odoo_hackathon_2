@@ -123,6 +123,44 @@ describe('PUT /api/users/:id', () => {
     expect(after.profile.joinDate.getTime()).toBe(before.profile.joinDate.getTime());
   });
 
+  test('ignores non-string values instead of saving them', async () => {
+    const member = await createMember();
+
+    const res = await request(app)
+      .put(`/api/users/${member.user._id}`)
+      .set('Authorization', `Bearer ${member.token}`)
+      .send({ profile: { avatar: { $gt: '' }, bio: 'Plain text bio' } });
+
+    expect(res.status).toBe(200);
+    const stored = await User.findById(member.user._id);
+    expect(stored.profile.avatar).toBeUndefined();
+    expect(stored.profile.bio).toBe('Plain text bio');
+  });
+
+  test('rejects a malformed member id with 400', async () => {
+    const member = await createMember();
+
+    const res = await request(app)
+      .put('/api/users/not-a-valid-id')
+      .set('Authorization', `Bearer ${member.token}`)
+      .send({ firstName: 'Clara' });
+
+    expect(res.status).toBe(400);
+  });
+
+  test('reports a taken username as 400 without leaking database details', async () => {
+    const existing = await createMember();
+    const member = await createMember();
+
+    const res = await request(app)
+      .put(`/api/users/${member.user._id}`)
+      .set('Authorization', `Bearer ${member.token}`)
+      .send({ username: existing.user.username });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('Username already taken');
+  });
+
   test('another member cannot update the profile', async () => {
     const owner = await createMember();
     const stranger = await createMember();
@@ -133,5 +171,35 @@ describe('PUT /api/users/:id', () => {
       .send({ firstName: 'Hijacked' });
 
     expect(res.status).toBe(403);
+  });
+});
+
+describe('PUT /api/auth/profile', () => {
+  test('ignores privileged fields and only saves the public profile', async () => {
+    const member = await createMember();
+
+    const res = await request(app)
+      .put('/api/auth/profile')
+      .set('Authorization', `Bearer ${member.token}`)
+      .send({
+        firstName: 'Clara',
+        profile: { location: 'Bengaluru' },
+        isAdmin: true,
+        points: 999999,
+        status: 'active',
+        email: 'taken-over@rewear.community',
+        password: 'plain-text-password'
+      });
+
+    expect(res.status).toBe(200);
+
+    const stored = await User.findById(member.user._id).select('+password');
+    expect(stored.firstName).toBe('Clara');
+    expect(stored.profile.location).toBe('Bengaluru');
+    // The fields below are the escalation attempt; none may change.
+    expect(stored.isAdmin).toBe(false);
+    expect(stored.points).toBe(100);
+    expect(stored.email).toBe(member.user.email);
+    expect(await stored.comparePassword('Password1')).toBe(true);
   });
 });
