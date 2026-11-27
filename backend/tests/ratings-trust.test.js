@@ -286,6 +286,14 @@ describe('Ratings, trust summary, public profile, and mismatch reports', () => {
     });
     expect(profile.listings).toHaveLength(1);
     expect(profile.listings[0].title).toBe('Raw Selvedge Jeans');
+    expect(profile.stats).toMatchObject({ listed: 1, swapsDone: 0, redeemed: 0 });
+    expect(profile.ratings).toHaveLength(3);
+    expect(profile.ratings[0]).toMatchObject({
+      stars: expect.any(Number),
+      matchStatus: expect.any(String),
+      rater: { username: expect.any(String) }
+    });
+    expect(profile.ratings[0].rater.email).toBeUndefined();
 
     const missingUserRes = await request(app).get('/api/users/does_not_exist/public');
     expect(missingUserRes.status).toBe(404);

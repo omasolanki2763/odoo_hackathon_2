@@ -51,14 +51,15 @@ class UserController {
       }
 
       const user = await User.findOne({ username: username.trim() })
-        .select('username firstName lastName profile createdAt status');
+        .select('username firstName lastName profile stats createdAt status');
 
       if (!user || user.status === 'banned') {
         return notFoundResponse(res, 'Member not found');
       }
 
-      const [trust, listings] = await Promise.all([
+      const [trust, ratings, listings] = await Promise.all([
         ratingService.getUserTrustSummary(user._id),
+        ratingService.getVisibleRatingsForUser(user._id),
         Item.find({ userId: user._id, status: { $in: ['available', 'approved'] } })
           .select('-adminNotes')
           .sort({ createdAt: -1 })
@@ -72,7 +73,13 @@ class UserController {
         city: (user.profile && user.profile.location) || null,
         bio: (user.profile && user.profile.bio) || null,
         avatar: (user.profile && user.profile.avatar) || null,
+        stats: {
+          listed: listings.length,
+          swapsDone: (user.stats && user.stats.swapsCompleted) || 0,
+          redeemed: (user.stats && user.stats.itemsReceived) || 0
+        },
         trust,
+        ratings,
         listings
       });
     } catch (error) {

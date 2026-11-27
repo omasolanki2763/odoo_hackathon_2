@@ -80,6 +80,11 @@ describe('ItemDetailPage Redeem Dialog & Propose Swap Wiring', () => {
 
     const proposeLink = await screen.findByRole('link', { name: 'Propose a swap' });
     expect(proposeLink).toHaveAttribute('href', '/swaps/new?item=item-42');
+    expect(screen.getByRole('link', { name: '@marcus_b' })).toHaveAttribute(
+      'href',
+      '/members/marcus_b'
+    );
+    expect(screen.getByText('No ratings yet')).toBeInTheDocument();
 
     const redeemTrigger = screen.getByRole('button', { name: 'Redeem for 75 points' });
     await user.click(redeemTrigger);
