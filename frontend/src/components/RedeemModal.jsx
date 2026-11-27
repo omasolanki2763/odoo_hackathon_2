@@ -93,20 +93,27 @@ const RedeemModal = ({
     return null;
   }
 
-  const cost = typeof quote?.cost === 'number' ? quote.cost : item.pointsValue || 50;
+  const cost =
+    typeof quote?.cost === 'number'
+      ? quote.cost
+      : typeof item.pointsValue === 'number'
+      ? item.pointsValue
+      : null;
+  const missingPrice = cost === null;
   const balanceBefore = typeof quote?.balanceBefore === 'number' ? quote.balanceBefore : null;
   const balanceAfter =
     typeof quote?.balanceAfter === 'number'
       ? quote.balanceAfter
-      : balanceBefore !== null
+      : balanceBefore !== null && cost !== null
       ? balanceBefore - cost
       : null;
   const insufficientBalance = Boolean(!quoteLoading && quote && !quote.canAfford);
-  const shortfall = balanceBefore !== null ? Math.max(0, cost - balanceBefore) : 0;
+  const shortfall = balanceBefore !== null && cost !== null ? Math.max(0, cost - balanceBefore) : 0;
   const firstImage =
     item.images?.[0]?.url || (typeof item.images?.[0] === 'string' ? item.images[0] : null);
   const errorText = submitError || quoteError;
-  const confirmDisabled = quoteLoading || submitting || !quote || !quote.canAfford || Boolean(quoteError);
+  const confirmDisabled =
+    quoteLoading || submitting || missingPrice || !quote || !quote.canAfford || Boolean(quoteError);
 
   return createPortal(
     <div
@@ -165,7 +172,7 @@ const RedeemModal = ({
               <div className="redeem-ledger-row">
                 <span className="redeem-ledger-label">This item</span>
                 <span className="redeem-ledger-value redeem-ledger-cost font-number">
-                  - {cost}
+                  {cost !== null ? `- ${cost}` : '—'}
                 </span>
               </div>
               <div className="redeem-ledger-row redeem-ledger-row-total">
@@ -185,6 +192,10 @@ const RedeemModal = ({
         {quoteLoading ? null : errorText ? (
           <p className="redeem-modal-alert" role="alert">
             {errorText}
+          </p>
+        ) : missingPrice ? (
+          <p className="redeem-modal-alert" role="alert">
+            Points value is not available for this garment yet.
           </p>
         ) : insufficientBalance ? (
           <p className="redeem-modal-alert" role="alert">
@@ -212,7 +223,11 @@ const RedeemModal = ({
             disabled={confirmDisabled}
             onClick={onConfirm}
           >
-            {submitting ? 'Completing…' : `Redeem for ${cost} points`}
+            {submitting
+              ? 'Completing…'
+              : cost !== null
+              ? `Redeem for ${cost} points`
+              : 'Redemption unavailable'}
           </button>
         </div>
       </div>

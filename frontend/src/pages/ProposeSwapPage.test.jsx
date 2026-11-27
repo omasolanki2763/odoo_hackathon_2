@@ -170,17 +170,17 @@ describe('ProposeSwapPage', () => {
     expect(screen.getByText(/already swapped/i)).toBeInTheDocument();
     expect(screen.getByText(/waiting for approval/i)).toBeInTheDocument();
 
-    // First selectable item is auto-selected and worth less -> top-up checkbox shown & checked
+    // First selectable item is auto-selected and worth less -> top-up checkbox defaults off until opted in
     const topUpCheckbox = await screen.findByRole('checkbox', { name: /add 15 points to balance it/i });
-    expect(topUpCheckbox).toBeChecked();
-    expect(screen.getByText(/Balanced: 60 \+ 15 = 75 points/i)).toBeInTheDocument();
-    expect(screen.getByText(/You have 340\. After the swap: 325\./i)).toBeInTheDocument();
-
-    // Unchecking top-up queries quote with topUp=0 and updates balance after
-    await user.click(topUpCheckbox);
     expect(topUpCheckbox).not.toBeChecked();
+    expect(screen.getByText(/You have 340\. After the swap: 340\./i)).toBeInTheDocument();
+
+    // Checking top-up queries quote with topUp=15 and shows balanced state
+    await user.click(topUpCheckbox);
+    expect(topUpCheckbox).toBeChecked();
+    expect(await screen.findByText(/Balanced: 60 \+ 15 = 75 points/i)).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByText(/You have 340\. After the swap: 340\./i)).toBeInTheDocument();
+      expect(screen.getByText(/You have 340\. After the swap: 325\./i)).toBeInTheDocument();
     });
 
     // Switching to an item worth more hides the top-up checkbox completely
@@ -253,7 +253,8 @@ describe('ProposeSwapPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByRole('checkbox', { name: /add 15 points to balance it/i });
+    const topUpCheckbox = await screen.findByRole('checkbox', { name: /add 15 points to balance it/i });
+    await user.click(topUpCheckbox);
 
     await user.click(screen.getByRole('radio', { name: /by post/i }));
     await user.type(screen.getByLabelText(/handover note/i), 'Trackable courier');
@@ -278,6 +279,66 @@ describe('ProposeSwapPage', () => {
 
     expect(await screen.findByTestId('swap-detail-route')).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem('userData')).points).toBe(325);
+    expect(authEvents.some((detail) => detail?.points === 325)).toBe(true);
+  });
+
+  it('refreshes sessionStorage header balance cleanly for unremembered logins', async () => {
+    localStorage.clear();
+    sessionStorage.setItem('token', 'session-only-token');
+    sessionStorage.setItem(
+      'userData',
+      JSON.stringify({ _id: 'me-1', username: 'clara_mends', points: 340 })
+    );
+
+    const authEvents = [];
+    window.addEventListener('auth-change', (event) => authEvents.push(event.detail));
+
+    api.get.mockImplementation((url) => {
+      if (url === '/items/wanted-1') {
+        return Promise.resolve({ data: { success: true, data: WANTED_ITEM } });
+      }
+      if (url === '/items/user/me') {
+        return Promise.resolve({ data: { success: true, data: [MY_ITEMS[0]], pagination: { totalItems: 1 } } });
+      }
+      if (url === '/swaps/quote') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              mode: 'swap',
+              wantedPoints: 75,
+              offeredPoints: 60,
+              difference: 15,
+              allowedTopUp: 15,
+              topUpApplied: 15,
+              balanceBefore: 340,
+              balanceAfter: 325,
+              canAffordTopUp: true,
+            },
+          },
+        });
+      }
+      if (url === '/auth/profile') {
+        return Promise.resolve({
+          data: { success: true, data: { _id: 'me-1', username: 'clara_mends', points: 325 } },
+        });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+
+    api.post.mockResolvedValue({
+      data: { success: true, data: { _id: 'swap-session-1', status: 'pending' } },
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('checkbox', { name: /add 15 points to balance it/i }));
+    await user.click(screen.getByRole('button', { name: /send swap request/i }));
+
+    expect(await screen.findByTestId('swap-detail-route')).toBeInTheDocument();
+    expect(localStorage.getItem('userData')).toBeNull();
+    expect(JSON.parse(sessionStorage.getItem('userData')).points).toBe(325);
     expect(authEvents.some((detail) => detail?.points === 325)).toBe(true);
   });
 

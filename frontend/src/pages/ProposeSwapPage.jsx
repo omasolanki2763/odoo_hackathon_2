@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api';
+import { getStoredUser } from '../utils/authStorage';
 import { refreshSessionUser } from '../utils/refreshSessionUser';
 import '../styles/ProposeSwapPage.css';
 
@@ -37,15 +38,6 @@ const extractImageUrl = (item) => {
   return typeof first === 'string' ? first : first.url || null;
 };
 
-const readStoredUser = () => {
-  try {
-    const raw = localStorage.getItem('userData');
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-};
-
 const HANDOVER_NOTE_MAX = 300;
 const MESSAGE_MAX = 500;
 
@@ -71,7 +63,7 @@ const ProposeSwapPage = () => {
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const currentUser = useMemo(() => readStoredUser(), []);
+  const currentUser = useMemo(() => getStoredUser(), []);
   const currentUserId = currentUser?._id || currentUser?.id || null;
 
   const loadInitialData = useCallback(async () => {
@@ -141,16 +133,17 @@ const ProposeSwapPage = () => {
       setQuoteLoading(true);
       setSubmitError('');
       try {
-        const params = { item: wantedItemId, offer: offerId };
-        if (topUpParam !== undefined) {
-          params.topUp = topUpParam;
-        }
+        const params = {
+          item: wantedItemId,
+          offer: offerId,
+          topUp: topUpParam !== undefined ? topUpParam : 0,
+        };
         const res = await api.get('/swaps/quote', { params });
         const quoteData = res.data?.data || null;
         setQuote(quoteData);
 
-        if (topUpParam === undefined && quoteData) {
-          setIncludeTopUp(quoteData.allowedTopUp > 0 && Boolean(quoteData.canAffordTopUp));
+        if (topUpParam === undefined) {
+          setIncludeTopUp(false);
         }
       } catch (err) {
         const msg =
