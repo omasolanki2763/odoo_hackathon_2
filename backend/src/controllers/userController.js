@@ -7,6 +7,37 @@ const ratingService = require('../services/ratingService');
 const { successResponse, errorResponse, notFoundResponse, forbiddenResponse, paginatedResponse } = require('../utils/response');
 const { generatePagination } = require('../utils/helpers');
 
+// Top-level and profile fields a member may change on their own account.
+const EDITABLE_USER_FIELDS = ['firstName', 'lastName', 'username'];
+const EDITABLE_PROFILE_FIELDS = ['bio', 'avatar', 'location'];
+
+/**
+ * Copies only the editable profile fields from a request body into a `$set`
+ * object. Profile fields use dot paths (`profile.bio`) so fields that are not
+ * sent, such as `profile.joinDate`, are left untouched.
+ *
+ * @param {object} body the raw request body
+ * @returns {object} a `$set`-ready object holding only allowed fields
+ */
+const pickEditableProfileFields = (body = {}) => {
+  const update = {};
+
+  for (const field of EDITABLE_USER_FIELDS) {
+    if (body[field] !== undefined) {
+      update[field] = body[field];
+    }
+  }
+
+  const profile = body.profile && typeof body.profile === 'object' ? body.profile : {};
+  for (const field of EDITABLE_PROFILE_FIELDS) {
+    if (profile[field] !== undefined) {
+      update[`profile.${field}`] = profile[field];
+    }
+  }
+
+  return update;
+};
+
 class UserController {
   // Get all users (admin)
   async getUsers(req, res) {
@@ -118,14 +149,22 @@ class UserController {
     try {
       const { id } = req.params;
       const userId = req.user._id;
-      const updateData = req.body;
 
       // Check if user is updating their own profile or is admin
       if (id !== userId.toString() && !req.user.isAdmin) {
         return forbiddenResponse(res, 'Not authorized to update this user');
       }
 
-      const user = await User.findByIdAndUpdate(id, updateData, { new: true }).select('-password');
+      // Only public profile fields can change here. Admin rights, points, status,
+      // email and password each have their own guarded flows, so anything else in
+      // the body is ignored rather than saved.
+      const updateData = pickEditableProfileFields(req.body);
+
+      const user = await User.findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        { new: true, runValidators: true }
+      ).select('-password');
 
       if (!user) {
         return notFoundResponse(res, 'User not found');
